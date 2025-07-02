@@ -64,7 +64,7 @@ func TestIConsoleLoggerInterface(t *testing.T) {
 	// Test that all interface methods are available
 	_ = logger.GetLogger()
 	_ = logger.GetLevel()
-	_ = logger.WithLevel(zerolog.InfoLevel)
+	_ = logger.WithLevel(InfoLevel)
 	_ = logger.WithPrefix("test")
 	_ = logger.WithCorrelationId("test-id")
 	_ = logger.WithFunction()
@@ -74,12 +74,13 @@ func TestIConsoleLoggerInterface(t *testing.T) {
 // Mock implementation for testing
 type mockConsoleLogger struct{}
 
-func (m *mockConsoleLogger) GetLogger() zerolog.Logger {
-	return zerolog.New(os.Stdout)
+func (m *mockConsoleLogger) GetLogger() *zerolog.Logger {
+	logger := zerolog.New(os.Stdout)
+	return &logger
 }
 
-func (m *mockConsoleLogger) GetLevel() zerolog.Level {
-	return zerolog.InfoLevel
+func (m *mockConsoleLogger) GetLevel() Level {
+	return InfoLevel
 }
 
 func (m *mockConsoleLogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
@@ -98,7 +99,7 @@ func (m *mockConsoleLogger) WithCorrelationId(value string) IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithLevel(lvl zerolog.Level) IConsoleLogger {
+func (m *mockConsoleLogger) WithLevel(lvl Level) IConsoleLogger {
 	return m
 }
 
@@ -118,7 +119,7 @@ func (m *mockConsoleLogger) GinWriter() io.Writer {
 	return &bytes.Buffer{}
 }
 
-func (m *mockConsoleLogger) GetMemoryLogs(correlationid string, minLevel zerolog.Level) (map[string]string, error) {
+func (m *mockConsoleLogger) GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error) {
 	return make(map[string]string), nil
 }
 
@@ -126,12 +127,12 @@ func TestConsoleLoggerWithLevel(t *testing.T) {
 	// Test logger level functionality with mock
 	mockLogger := &mockConsoleLogger{}
 	
-	result := mockLogger.WithLevel(zerolog.DebugLevel)
+	result := mockLogger.WithLevel(DebugLevel)
 	if result == nil {
 		t.Error("WithLevel should return a logger instance")
 	}
 	
-	if result.GetLevel() != zerolog.InfoLevel {
+	if result.GetLevel() != InfoLevel {
 		t.Logf("Mock logger level is %v", result.GetLevel())
 	}
 }
@@ -196,7 +197,7 @@ func TestConstants(t *testing.T) {
 
 func TestLoggerInitialization(t *testing.T) {
 	// Test that internal logger is properly initialized
-	if internallog.GetLevel() != zerolog.WarnLevel {
+	if internallog.GetLevel() != WarnLevel {
 		t.Errorf("Expected internal log level to be WarnLevel, got %v", internallog.GetLevel())
 	}
 }
@@ -206,7 +207,7 @@ func TestConsoleLoggerChaining(t *testing.T) {
 	mockLogger := &mockConsoleLogger{}
 	
 	result := mockLogger.
-		WithLevel(zerolog.DebugLevel).
+		WithLevel(DebugLevel).
 		WithPrefix("test").
 		WithCorrelationId("test-id").
 		WithContext("key", "value").
