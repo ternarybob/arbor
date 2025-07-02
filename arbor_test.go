@@ -111,7 +111,7 @@ func (m *mockConsoleLogger) WithFunction() IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithFileWriterPath(name string, filePath string, bufferSize int) (IConsoleLogger, error) {
+func (m *mockConsoleLogger) WithFileWriterPath(name string, filePath string, bufferSize, maxFiles int) (IConsoleLogger, error) {
 	return m, nil
 }
 

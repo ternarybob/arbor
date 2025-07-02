@@ -26,7 +26,7 @@ type IConsoleLogger interface {
 
 	WithFunction() IConsoleLogger
 
-	WithFileWriterPath(name string, filePath string, bufferSize int) (IConsoleLogger, error)
+	WithFileWriterPath(name string, filePath string, bufferSize, maxFiles int) (IConsoleLogger, error)
 
 	GinWriter() io.Writer
 

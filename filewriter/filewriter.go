@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -74,19 +75,26 @@ func NewWithPath(filePath string, bufferSize, maxFiles int) (*FileWriter, error)
 
 // rotateFiles rotates the log files to ensure no more than maxFiles are kept
 func (w *FileWriter) rotateFiles(filePath string, maxFiles int) {
-	// File rotation logic here to delete older files when exceeding maxFiles
-	files, err := filepath.Glob(filePath + "*")
+	// Get directory for rotation
+	dir := filepath.Dir(filePath)
+	
+	// Create pattern to match log files
+	pattern := dir + string(filepath.Separator) + "*" + ".log"
+	
+	files, err := filepath.Glob(pattern)
 	if err != nil {
 		fmt.Println("Error fetching log files for rotation:", err)
 		return
 	}
 
-	// Ensure files are sorted, oldest first
+	// Ensure files are sorted, oldest first (by name, which should be date-based)
 	sort.Strings(files)
 
-	// Remove old log files
-	for len(files) > maxFiles {
-		os.Remove(files[0])
+	// Remove old log files if we exceed maxFiles
+	for len(files) >= maxFiles {
+		if err := os.Remove(files[0]); err != nil {
+			fmt.Printf("Error removing old log file %s: %v\n", files[0], err)
+		}
 		files = files[1:]
 	}
 }
