@@ -110,6 +110,18 @@ func (m *mockConsoleLogger) WithFunction() IConsoleLogger {
 	return m
 }
 
+func (m *mockConsoleLogger) WithFileWriterPath(name string, filePath string, bufferSize int) (IConsoleLogger, error) {
+	return m, nil
+}
+
+func (m *mockConsoleLogger) GinWriter() io.Writer {
+	return &bytes.Buffer{}
+}
+
+func (m *mockConsoleLogger) GetMemoryLogs(correlationid string, minLevel zerolog.Level) (map[string]string, error) {
+	return make(map[string]string), nil
+}
+
 func TestConsoleLoggerWithLevel(t *testing.T) {
 	// Test logger level functionality with mock
 	mockLogger := &mockConsoleLogger{}

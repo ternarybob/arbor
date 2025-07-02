@@ -3,14 +3,14 @@ module github.com/ternarybob/arbor
 go 1.24
 
 require (
-	github.com/ternarybob/funktion v1.0.0
-	github.com/ternarybob/satus v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.5.4
 	github.com/jinzhu/copier v0.4.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/rs/zerolog v1.34.0
+	github.com/ternarybob/funktion v1.0.0
+	github.com/ternarybob/satus v1.0.0
 	go.etcd.io/bbolt v1.4.1
 )
 
