@@ -46,10 +46,18 @@ jobs:
       
     - name: Check formatting
       run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-          echo "The following files are not formatted:"
-          gofmt -s -l .
+        UNFORMATTED=$(gofmt -s -l .)
+        if [ -n "$UNFORMATTED" ]; then
+          echo "⚠️  The following files are not formatted properly:"
+          echo "$UNFORMATTED"
+          echo ""
+          echo "💡 To fix, run: gofmt -s -w ."
+          echo ""
+          echo "🔧 Showing formatting differences:"
+          gofmt -s -d .
           exit 1
+        else
+          echo "✅ All files are properly formatted"
         fi
         
     - name: Build
