@@ -92,7 +92,8 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Bump version and create release
+    - name: Bump version and create tag
+      id: tag_version
       uses: anothrNick/github-tag-action@1.70.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -104,6 +105,23 @@ jobs:
         PRERELEASE: false
         VERBOSE: true
         INITIAL_VERSION: 1.0.0
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      if: steps.tag_version.outputs.new_tag != ''
+      with:
+        tag_name: ${{ steps.tag_version.outputs.new_tag }}
+        name: Release ${{ steps.tag_version.outputs.new_tag }}
+        generate_release_notes: true
+        body: |
+          ## Release ${{ steps.tag_version.outputs.new_tag }}
+          
+          ### Installation
+          ```go
+          go get github.com/ternarybob/arbor@${{ steps.tag_version.outputs.new_tag }}
+          ```
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Update config.yml with new version
       run: |
