@@ -7,6 +7,8 @@ type Level = zerolog.Level
 
 // Level constants that mirror zerolog levels
 const (
+	// TraceLevel defines trace log level.
+	TraceLevel Level = zerolog.TraceLevel
 	// DebugLevel defines debug log level.
 	DebugLevel Level = zerolog.DebugLevel
 	// InfoLevel defines info log level.
@@ -23,8 +25,6 @@ const (
 	NoLevel Level = zerolog.NoLevel
 	// Disabled disables the logger.
 	Disabled Level = zerolog.Disabled
-	// TraceLevel defines trace log level.
-	TraceLevel Level = zerolog.TraceLevel
 )
 
 // ParseLevel converts a level string to a Level value.
