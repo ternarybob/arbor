@@ -10,7 +10,7 @@ import (
 type IConsoleLogger interface {
 	GetLogger() zerolog.Logger
 
-	GetLevel() zerolog.Level
+	GetLevel() Level
 
 	WithRequestContext(ctx echo.Context) IConsoleLogger
 
@@ -20,7 +20,7 @@ type IConsoleLogger interface {
 
 	WithCorrelationId(value string) IConsoleLogger
 
-	WithLevel(lvl zerolog.Level) IConsoleLogger
+	WithLevel(lvl Level) IConsoleLogger
 
 	WithContext(key string, value string) IConsoleLogger
 
@@ -30,5 +30,5 @@ type IConsoleLogger interface {
 
 	GinWriter() io.Writer
 
-	GetMemoryLogs(correlationid string, minLevel zerolog.Level) (map[string]string, error)
+	GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error)
 }

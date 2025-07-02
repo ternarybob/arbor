@@ -48,9 +48,9 @@ func ConsoleLogger() IConsoleLogger {
 		writers      []io.Writer
 	)
 
-	loglevel, err := zerolog.ParseLevel(cfg.Service.LogLevel)
+	loglevel, err := ParseLevel(cfg.Service.LogLevel)
 	if err != nil {
-		loglevel = zerolog.InfoLevel
+		loglevel = InfoLevel
 	}
 
 	// zerolog.SetGlobalLevel(loglevel)
@@ -214,7 +214,7 @@ func (d *consolelogger) WithCorrelationId(correlationid string) IConsoleLogger {
 
 }
 
-func (d *consolelogger) GetLevel() zerolog.Level {
+func (d *consolelogger) GetLevel() Level {
 
 	return d.logger.GetLevel()
 
@@ -228,7 +228,7 @@ func (d *consolelogger) WithPrefix(value string) IConsoleLogger {
 
 }
 
-func (d *consolelogger) WithLevel(lvl zerolog.Level) IConsoleLogger {
+func (d *consolelogger) WithLevel(lvl Level) IConsoleLogger {
 
 	var (
 		output = &consolelogger{}
@@ -320,6 +320,6 @@ func (d *consolelogger) GinWriter() io.Writer {
 	}
 }
 
-func (d *consolelogger) GetMemoryLogs(correlationid string, minLevel zerolog.Level) (map[string]string, error) {
+func (d *consolelogger) GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error) {
 	return memorywriter.GetEntriesWithLevel(correlationid, minLevel)
 }
