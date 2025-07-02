@@ -301,9 +301,9 @@ func (d *consolelogger) GetLogger() *zerolog.Logger {
 
 }
 
-func (d *consolelogger) WithFileWriterPath(name string, filePath string, bufferSize int) (IConsoleLogger, error) {
+func (d *consolelogger) WithFileWriterPath(name string, filePath string, bufferSize, maxFiles int) (IConsoleLogger, error) {
 	// Create file writer with directory creation
-	fileWriter, err := filewriter.NewWithPath(filePath, bufferSize)
+	fileWriter, err := filewriter.NewWithPath(filePath, bufferSize, maxFiles)
 	if err != nil {
 		return nil, err
 	}

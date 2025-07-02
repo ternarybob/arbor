@@ -54,21 +54,41 @@ func New(file *os.File, bufferSize int) *FileWriter {
 }
 
 // NewWithPath creates a new FileWriter with the specified file path, creating directories if needed
-func NewWithPath(filePath string, bufferSize int) (*FileWriter, error) {
-	// Create directory if it doesn't exist
+// It also implements file rotation based on the specified max number of log files.
+func NewWithPath(filePath string, bufferSize, maxFiles int) (*FileWriter, error) {
 	dir := filepath.Dir(filePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	// Open or create the file
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
 
-	// Create and return the FileWriter
-	return New(file, bufferSize), nil
+	fw := New(file, bufferSize)
+	fw.rotateFiles(filePath, maxFiles)
+
+	return fw, nil
+}
+
+// rotateFiles rotates the log files to ensure no more than maxFiles are kept
+func (w *FileWriter) rotateFiles(filePath string, maxFiles int) {
+	// File rotation logic here to delete older files when exceeding maxFiles
+	files, err := filepath.Glob(filePath + "*")
+	if err != nil {
+		fmt.Println("Error fetching log files for rotation:", err)
+		return
+	}
+
+	// Ensure files are sorted, oldest first
+	sort.Strings(files)
+
+	// Remove old log files
+	for len(files) > maxFiles {
+		os.Remove(files[0])
+		files = files[1:]
+	}
 }
 
 func (w *FileWriter) Write(e []byte) (n int, err error) {
