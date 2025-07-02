@@ -1,0 +1,32 @@
+service:
+  name: "test-service"
+  version: "1.0.0"
+  support: "test@example.com"
+  slot: 1
+  scope: "DEV"
+  loglevel: "info"
+  logfile: ""
+
+services:
+  - name: "test-client"
+    type: "api"
+    scope: "DEV"
+    url: ":8080"
+    loglevel: "info"
+    logfile: ""
+    mockuser: "test@example.com"
+    connection: ""
+
+connections:
+  - name: "default"
+    scope: ["DEV"]
+    type: "sqlite"
+    hosts: ["localhost"]
+    port: "5432"
+    database: "test"
+    connstr: ""
+    cert: ""
+    key: ""
+
+params:
+  test_param: "test_value"

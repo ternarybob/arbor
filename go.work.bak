@@ -1,0 +1,9 @@
+go 1.21.3
+
+use (
+    ./arraywriter
+    ./consolewriter
+    ./datastorewriter
+    ./ginwriter
+    ./rediswriter
+)
