@@ -34,9 +34,23 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
+      continue-on-error: true
           
-    - name: Download dependencies
-      run: go mod download
+    - name: Clean and download dependencies
+      run: |
+        # Clean module cache if there are issues
+        go clean -modcache || true
+        
+        # Download dependencies with proper error handling
+        if ! go mod download; then
+          echo "Error: Failed to download Go modules"
+          echo "Attempting to clean and retry..."
+          go clean -modcache
+          go mod download
+        fi
+        
+        # Verify modules are properly downloaded
+        go mod verify
       
     - name: Run tests
       run: go test -v ./...
@@ -97,12 +111,35 @@ jobs:
         NEW_TAG=$(git tag --sort=-version:refname | head -1)
         NEW_VERSION="${NEW_TAG#v}"
         
-        # Update config.yml
-        sed -i "s/^  version: \".*\"/  version: \"$NEW_VERSION\"/" config.yml
+        echo "Updating config.yml to version: $NEW_VERSION"
         
-        # Commit the config update
+        # Update config.yml
+        if ! sed -i "s/^  version: \".*\"/  version: \"$NEW_VERSION\"/" config.yml; then
+          echo "Error: Failed to update config.yml"
+          exit 1
+        fi
+        
+        # Configure git
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        
+        # Check if there are changes to commit
+        if git diff --quiet config.yml; then
+          echo "No changes to config.yml - version already up to date"
+          exit 0
+        fi
+        
+        # Commit the config update
         git add config.yml
-        git commit -m "Update config.yml to version $NEW_VERSION [skip ci]" || echo "No changes to commit"
-        git push origin main || echo "Nothing to push"
+        if ! git commit -m "Update config.yml to version $NEW_VERSION [skip ci]"; then
+          echo "Error: Failed to commit config.yml changes"
+          exit 1
+        fi
+        
+        # Push changes
+        if ! git push origin main; then
+          echo "Error: Failed to push config.yml changes"
+          exit 1
+        fi
+        
+        echo "Successfully updated config.yml to version $NEW_VERSION"
