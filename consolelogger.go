@@ -8,9 +8,9 @@ import (
 	"runtime"
 
 	consolewriter "github.com/ternarybob/arbor/consolewriter"
-	"github.com/ternarybob/arbor/memorywriter"
 	"github.com/ternarybob/arbor/filewriter"
 	"github.com/ternarybob/arbor/ginwriter"
+	"github.com/ternarybob/arbor/memorywriter"
 
 	"github.com/ternarybob/satus"
 

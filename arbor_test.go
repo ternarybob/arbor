@@ -126,12 +126,12 @@ func (m *mockConsoleLogger) GetMemoryLogs(correlationid string, minLevel Level) 
 func TestConsoleLoggerWithLevel(t *testing.T) {
 	// Test logger level functionality with mock
 	mockLogger := &mockConsoleLogger{}
-	
+
 	result := mockLogger.WithLevel(DebugLevel)
 	if result == nil {
 		t.Error("WithLevel should return a logger instance")
 	}
-	
+
 	if result.GetLevel() != InfoLevel {
 		t.Logf("Mock logger level is %v", result.GetLevel())
 	}
@@ -140,7 +140,7 @@ func TestConsoleLoggerWithLevel(t *testing.T) {
 func TestConsoleLoggerWithPrefix(t *testing.T) {
 	// Test prefix functionality with mock
 	mockLogger := &mockConsoleLogger{}
-	
+
 	result := mockLogger.WithPrefix("test-prefix")
 	if result == nil {
 		t.Error("WithPrefix should return a logger instance")
@@ -150,7 +150,7 @@ func TestConsoleLoggerWithPrefix(t *testing.T) {
 func TestConsoleLoggerWithCorrelationId(t *testing.T) {
 	// Test correlation ID functionality with mock
 	mockLogger := &mockConsoleLogger{}
-	
+
 	result := mockLogger.WithCorrelationId("test-correlation-id")
 	if result == nil {
 		t.Error("WithCorrelationId should return a logger instance")
@@ -160,7 +160,7 @@ func TestConsoleLoggerWithCorrelationId(t *testing.T) {
 func TestConsoleLoggerWithContext(t *testing.T) {
 	// Test context functionality with mock
 	mockLogger := &mockConsoleLogger{}
-	
+
 	result := mockLogger.WithContext("key", "value")
 	if result == nil {
 		t.Error("WithContext should return a logger instance")
@@ -170,7 +170,7 @@ func TestConsoleLoggerWithContext(t *testing.T) {
 func TestConsoleLoggerWithFunction(t *testing.T) {
 	// Test function name functionality with mock
 	mockLogger := &mockConsoleLogger{}
-	
+
 	result := mockLogger.WithFunction()
 	if result == nil {
 		t.Error("WithFunction should return a logger instance")
@@ -205,14 +205,14 @@ func TestLoggerInitialization(t *testing.T) {
 func TestConsoleLoggerChaining(t *testing.T) {
 	// Test that logger methods can be chained
 	mockLogger := &mockConsoleLogger{}
-	
+
 	result := mockLogger.
 		WithLevel(DebugLevel).
 		WithPrefix("test").
 		WithCorrelationId("test-id").
 		WithContext("key", "value").
 		WithFunction()
-	
+
 	if result == nil {
 		t.Error("Chained logger methods should return a logger instance")
 	}
@@ -222,19 +222,19 @@ func TestConsoleLoggerChaining(t *testing.T) {
 func TestWriterInterface(t *testing.T) {
 	// Test that we can create writers
 	var buf bytes.Buffer
-	
+
 	// Test basic Write interface
 	data := []byte("test data")
 	n, err := buf.Write(data)
-	
+
 	if err != nil {
 		t.Errorf("Write should not error: %v", err)
 	}
-	
+
 	if n != len(data) {
 		t.Errorf("Write should return correct byte count: got %d, want %d", n, len(data))
 	}
-	
+
 	if !strings.Contains(buf.String(), "test data") {
 		t.Errorf("Buffer should contain written data")
 	}

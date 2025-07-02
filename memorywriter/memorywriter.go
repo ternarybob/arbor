@@ -35,12 +35,12 @@ const (
 var (
 	loglevel    zerolog.Level  = zerolog.InfoLevel
 	internallog zerolog.Logger = zerolog.New(&consolewriter.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(loglevel)
-	
+
 	// In-memory storage with mutex for thread safety
-	logStore = make(map[string][]LogEvent)
-	storeMux sync.RWMutex
+	logStore     = make(map[string][]LogEvent)
+	storeMux     sync.RWMutex
 	indexCounter uint64 = 0
-	counterMux sync.Mutex
+	counterMux   sync.Mutex
 )
 
 func New() *MemoryWriter {
@@ -109,7 +109,7 @@ func (w *MemoryWriter) writeline(event []byte) error {
 	entries = append(entries, logentry)
 	logStore[logentry.CorrelationID] = entries
 
-	log.Trace().Msgf("CorrelationID:%s -> message:%s (total entries: %d)", 
+	log.Trace().Msgf("CorrelationID:%s -> message:%s (total entries: %d)",
 		logentry.CorrelationID, logentry.Message, len(entries))
 
 	return nil
@@ -195,7 +195,7 @@ func GetEntriesWithLevel(correlationid string, minLevel zerolog.Level) (map[stri
 
 func (l *LogEvent) format() string {
 	epoch := l.Timestamp.Format(time.Stamp)
-	
+
 	// Use simple level formatting
 	levelStr := l.Level
 	switch l.Level {
@@ -247,7 +247,7 @@ func ClearEntries(correlationid string) {
 
 	storeMux.Lock()
 	defer storeMux.Unlock()
-	
+
 	delete(logStore, correlationid)
 }
 
@@ -255,7 +255,7 @@ func ClearEntries(correlationid string) {
 func ClearAllEntries() {
 	storeMux.Lock()
 	defer storeMux.Unlock()
-	
+
 	logStore = make(map[string][]LogEvent)
 }
 
@@ -263,7 +263,7 @@ func ClearAllEntries() {
 func GetStoredCorrelationIDs() []string {
 	storeMux.RLock()
 	defer storeMux.RUnlock()
-	
+
 	ids := make([]string, 0, len(logStore))
 	for id := range logStore {
 		ids = append(ids, id)
