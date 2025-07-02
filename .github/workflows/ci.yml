@@ -110,22 +110,15 @@ jobs:
     - name: Generate changelog
       id: changelog
       run: |
-        echo "## Changes in ${{ steps.tag_info.outputs.version }}" > CHANGELOG.tmp
-        echo "" >> CHANGELOG.tmp
-        
-        # Get commits since last tag
+        # Get commits since last tag for a simple changelog
         LAST_TAG=$(git tag --sort=-version:refname | head -2 | tail -1)
         if [ -z "$LAST_TAG" ]; then
           LAST_TAG=$(git rev-list --max-parents=0 HEAD)
         fi
         
-        git log --oneline --pretty=format:"- %s" $LAST_TAG..HEAD >> CHANGELOG.tmp
-        
-        {
-          echo 'changelog<<EOF'
-          cat CHANGELOG.tmp
-          echo 'EOF'
-        } >> $GITHUB_OUTPUT
+        # Create a simple changelog without complex formatting
+        CHANGES=$(git log --oneline --pretty=format:"%s" $LAST_TAG..HEAD | head -5 | tr '\n' '; ')
+        echo "changelog=Changes: ${CHANGES}" >> $GITHUB_OUTPUT
         
     - name: Create GitHub Release
       env:
