@@ -77,10 +77,10 @@ func NewWithPath(filePath string, bufferSize, maxFiles int) (*FileWriter, error)
 func (w *FileWriter) rotateFiles(filePath string, maxFiles int) {
 	// Get directory for rotation
 	dir := filepath.Dir(filePath)
-	
+
 	// Create pattern to match log files
 	pattern := dir + string(filepath.Separator) + "*" + ".log"
-	
+
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		fmt.Println("Error fetching log files for rotation:", err)
