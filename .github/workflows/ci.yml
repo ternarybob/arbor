@@ -62,4 +62,117 @@ jobs:
         
     - name: Build
       run: go build ./...
+      
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+    - name: Check if version bump needed
+      id: check_bump
+      run: |
+        # Skip version bump if the last commit was already a version bump
+        LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+        if [[ "$LAST_COMMIT_MSG" == *"Bump version to"* ]] || [[ "$LAST_COMMIT_MSG" == *"[skip version]"* ]]; then
+          echo "Skipping version bump - last commit was version bump or has [skip version] tag"
+          echo "skip=true" >> $GITHUB_OUTPUT
+        else
+          echo "Version bump needed"
+          echo "skip=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Make bump script executable
+      if: steps.check_bump.outputs.skip == 'false'
+      run: chmod +x scripts/bump-version.sh
+      
+    - name: Bump version
+      if: steps.check_bump.outputs.skip == 'false'
+      id: bump
+      run: |
+        # Get current version from latest tag
+        CURRENT_TAG=$(git tag --sort=-version:refname | head -1)
+        CURRENT_VERSION="${CURRENT_TAG#v}"
+        echo "Current version: $CURRENT_VERSION"
+        
+        # Run version bump script
+        ./scripts/bump-version.sh patch
+        
+        # Get new version
+        NEW_TAG=$(git tag --sort=-version:refname | head -1)
+        if [[ "$NEW_TAG" == "$CURRENT_TAG" ]]; then
+          # No new tag created, get version from config.yml
+          NEW_VERSION=$(grep '^  version:' config.yml | sed 's/  version: "\([^"]*\)".*/\1/')
+        else
+          NEW_VERSION="${NEW_TAG#v}"
+        fi
+        echo "New version: $NEW_VERSION"
+        
+        # Set output for use in later steps
+        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "previous_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Commit and push version bump
+      if: steps.check_bump.outputs.skip == 'false'
+      run: |
+        NEW_VERSION="${{ steps.bump.outputs.version }}"
+        
+        # Add changed files
+        git add config.yml CHANGELOG.md 2>/dev/null || true
+        
+        # Check if there are changes to commit
+        if ! git diff --staged --quiet; then
+          git commit -m "Bump version to $NEW_VERSION [skip ci]"
+        fi
+        
+        # Create and push tag
+        git tag "v$NEW_VERSION"
+        git push origin main
+        git push origin "v$NEW_VERSION"
+        
+    - name: Create GitHub Release
+      if: steps.check_bump.outputs.skip == 'false'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        NEW_VERSION="${{ steps.bump.outputs.version }}"
+        PREVIOUS_VERSION="${{ steps.bump.outputs.previous_version }}"
+        
+        # Generate changelog from commits since last version
+        if git tag | grep -q "v$PREVIOUS_VERSION"; then
+          CHANGELOG=$(git log v$PREVIOUS_VERSION..HEAD --oneline --pretty=format:"- %s" | head -10)
+        else
+          CHANGELOG=$(git log --oneline --pretty=format:"- %s" | head -10)
+        fi
+        
+        if [ -z "$CHANGELOG" ]; then
+          CHANGELOG="- Various improvements and bug fixes"
+        fi
+        
+        # Create release
+        gh release create "v$NEW_VERSION" \
+          --title "Release v$NEW_VERSION" \
+          --notes "## Changes since v$PREVIOUS_VERSION
+
+$CHANGELOG
+
+## Usage
+
+\`\`\`go
+go get github.com/ternarybob/arbor@v$NEW_VERSION
+\`\`\`"
 

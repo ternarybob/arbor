@@ -1,6 +1,6 @@
 service:
   name: "test-service"
-  version: "1.0.0"
+  version: "1.0.7"
   support: "test@example.com"
   slot: 1
   scope: "DEV"
