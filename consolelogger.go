@@ -286,7 +286,7 @@ func (d *consolelogger) getFunctionName() string {
 
 }
 
-func (d *consolelogger) GetLogger() zerolog.Logger {
+func (d *consolelogger) GetLogger() *zerolog.Logger {
 
 	var (
 		output = &consolelogger{}
@@ -294,10 +294,10 @@ func (d *consolelogger) GetLogger() zerolog.Logger {
 
 	if err := copier.CopyWithOption(&output, &d, copieropts); err != nil {
 		internallog.Warn().Err(err).Msgf("Unable to copy existing service -> reverted to inital")
-		return d.logger
+		return &d.logger
 	}
 
-	return output.logger
+	return &output.logger
 
 }
 

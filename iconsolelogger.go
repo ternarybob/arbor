@@ -8,7 +8,7 @@ import (
 )
 
 type IConsoleLogger interface {
-	GetLogger() zerolog.Logger
+	GetLogger() *zerolog.Logger
 
 	GetLevel() Level
 
