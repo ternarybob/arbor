@@ -124,7 +124,7 @@ jobs:
         {
           echo 'changelog<<EOF'
           cat CHANGELOG.tmp
-          echo EOF
+          echo 'EOF'
         } >> $GITHUB_OUTPUT
         
     - name: Create GitHub Release
