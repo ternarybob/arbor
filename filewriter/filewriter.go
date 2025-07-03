@@ -279,6 +279,9 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("empty log entry")
 	}
 
+	// Clean up potential JSON corruption (multiple JSON objects on one line)
+	trimmedData = w.cleanJSONData(trimmedData)
+
 	// Check if data is already valid JSON
 	if !json.Valid(trimmedData) {
 		// Try to handle non-JSON data gracefully
@@ -289,7 +292,7 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	var genericEntry map[string]interface{}
 	if err := json.Unmarshal(trimmedData, &genericEntry); err != nil {
 		// Log detailed error for debugging but don't use circular logging
-		fmt.Fprintf(os.Stderr, "[FILEWRITER DEBUG] JSON unmarshal failed for data: %q, error: %v\n", string(trimmedData), err)
+		fmt.Fprintf(os.Stderr, "[DEBUG] JSON unmarshal failed for data: %q, error: %v\n", string(trimmedData), err)
 		// Return the original data as fallback
 		return w.handleNonJSONData(trimmedData), nil
 	}
@@ -324,6 +327,35 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	// Format as standard log line
 	formatted := w.formatLine(&logEntry, false) // false = no color codes for file
 	return []byte(formatted + "\n"), nil
+}
+
+// cleanJSONData attempts to fix common JSON corruption issues
+func (w *FileWriter) cleanJSONData(data []byte) []byte {
+	dataStr := string(data)
+	
+	// Handle case where multiple JSON objects are concatenated
+	if strings.Count(dataStr, "{") > 1 {
+		// Find the first complete JSON object
+		braceCount := 0
+		for i, char := range dataStr {
+			if char == '{' {
+				braceCount++
+			} else if char == '}' {
+				braceCount--
+				if braceCount == 0 {
+					// Found the end of the first complete JSON object
+					return []byte(dataStr[:i+1])
+				}
+			}
+		}
+	}
+	
+	// Remove trailing commas and incomplete JSON fragments
+	dataStr = strings.TrimSuffix(dataStr, ",")
+	dataStr = strings.TrimSuffix(dataStr, ",\"")
+	dataStr = strings.TrimSuffix(dataStr, ",\n")
+	
+	return []byte(dataStr)
 }
 
 // handleNonJSONData creates a basic log entry for non-JSON data

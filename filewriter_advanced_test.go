@@ -251,6 +251,61 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 	t.Logf("Successfully tested all log levels:\n%s", contentStr)
 }
 
+func TestFileWriterJSONCorruption(t *testing.T) {
+	// Test handling of corrupted/concatenated JSON entries
+	tempDir := t.TempDir()
+	logFile := filepath.Join(tempDir, "corruption.log")
+
+	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 200, 5)
+	if err != nil {
+		t.Fatalf("Failed to create file writer: %v", err)
+	}
+	defer fw.Close()
+
+	// Test cases with corrupted JSON similar to what we saw in the log file
+	corruptedEntries := []string{
+		`{"level":"info","message":"test"},{"level":"debug","message":"another"}`, // Multiple JSON objects
+		`{"level":"info","message":"test"},"trailing":"data"`, // Trailing data
+		`{"level":"info","prefix":"test","prefix":"another","message":"msg"}`, // Duplicate keys
+		`{"level":"info","message":"test with unicode ╚══════"}`, // Unicode characters
+		`{"level":"debug","message":"incomplete`, // Incomplete JSON
+	}
+
+	for i, entry := range corruptedEntries {
+		_, err := fw.Write([]byte(entry + "\n"))
+		if err != nil {
+			t.Errorf("Failed to write corrupted entry %d: %v", i, err)
+		}
+	}
+
+	// Give time for processing
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify content was written and is readable
+	content, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("Failed to read corruption log: %v", err)
+	}
+
+	if len(content) == 0 {
+		t.Error("Corruption log should have content")
+	}
+
+	// Should have some clean output for most entries
+	contentStr := string(content)
+	lines := strings.Count(contentStr, "\n")
+	if lines < len(corruptedEntries)/2 {
+		t.Errorf("Expected at least %d lines for corrupted JSON, got %d", len(corruptedEntries)/2, lines)
+	}
+
+	// Should not contain raw JSON corruption markers
+	if strings.Contains(contentStr, "},{") {
+		t.Error("Output should not contain concatenated JSON objects")
+	}
+
+	t.Logf("Successfully handled %d corrupted JSON entries:\n%s", len(corruptedEntries), contentStr)
+}
+
 func TestFileWriterEdgeCaseFilenames(t *testing.T) {
 	// Test edge case filename patterns and scenarios
 	tempDir := t.TempDir()
