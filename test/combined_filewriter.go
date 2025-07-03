@@ -13,19 +13,19 @@ import (
 
 func main() {
 	fmt.Println("=== Combined FileWriter Test Suite ===")
-	
+
 	// Run the improved filewriter tests
 	runImprovedFilewriterTests()
-	
+
 	fmt.Println("\n" + strings.Repeat("=", 80))
-	
+
 	// Run the JSON fix tests
 	runJSONFixTests()
 }
 
 func runImprovedFilewriterTests() {
 	fmt.Println("\n=== IMPROVED FILEWRITER TESTS ===")
-	
+
 	// Create a temporary file for testing
 	file, err := os.CreateTemp("", "test_improved_*.log")
 	if err != nil {
@@ -133,7 +133,7 @@ func runImprovedFilewriterTests() {
 
 func runJSONFixTests() {
 	fmt.Println("\n=== JSON FIX TESTS ===")
-	
+
 	// Create a temporary log file
 	tempDir := os.TempDir()
 	logFile := filepath.Join(tempDir, "json_fix_test.log")
