@@ -2,6 +2,8 @@ package filewriter
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,15 +26,17 @@ type WriteTask struct {
 }
 
 type FileWriter struct {
-	mutex     sync.Mutex
-	file      *os.File
-	queue     chan WriteTask
-	wg        sync.WaitGroup
-	err       error
-	Log       []string
-	logFormat string // "standard" or "json"
-	pattern   string // file naming pattern
-	filePath  string // current file path
+	mutex        sync.Mutex
+	file         *os.File
+	queue        chan WriteTask
+	wg           sync.WaitGroup
+	err          error
+	Log          []string
+	logFormat    string // "standard" or "json"
+	pattern      string // file naming pattern
+	filePath     string // current file path
+	recentHashes map[string]time.Time // For deduplication
+	hashMutex    sync.RWMutex
 }
 
 type LogEvent struct {
@@ -51,10 +55,11 @@ func New(file *os.File, bufferSize int) *FileWriter {
 	// fileWriter, _ := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
 
 	w := &FileWriter{
-		file:      file,
-		queue:     make(chan WriteTask, bufferSize),
-		wg:        sync.WaitGroup{},
-		logFormat: "standard", // Default to standard format, not JSON
+		file:         file,
+		queue:        make(chan WriteTask, bufferSize),
+		wg:           sync.WaitGroup{},
+		logFormat:    "standard", // Default to standard format, not JSON
+		recentHashes: make(map[string]time.Time),
 	}
 	w.wg.Add(1)
 	go w.writeLoopWithFormat() // Use formatted output by default
@@ -106,12 +111,13 @@ func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFi
 
 	// Create FileWriter with enhanced fields
 	fw := &FileWriter{
-		file:      file,
-		queue:     make(chan WriteTask, bufferSize),
-		wg:        sync.WaitGroup{},
-		logFormat: format,
-		pattern:   pattern,
-		filePath:  filePath,
+		file:         file,
+		queue:        make(chan WriteTask, bufferSize),
+		wg:           sync.WaitGroup{},
+		logFormat:    format,
+		pattern:      pattern,
+		filePath:     filePath,
+		recentHashes: make(map[string]time.Time),
 	}
 
 	fw.wg.Add(1)
@@ -173,7 +179,6 @@ func (w *FileWriter) Write(e []byte) (n int, err error) {
 }
 
 func (w *FileWriter) writeline(event []byte) error {
-
 	log := internallog.With().Str("prefix", "writeline").Logger()
 
 	if len(event) <= 0 {
@@ -184,13 +189,13 @@ func (w *FileWriter) writeline(event []byte) error {
 	var logentry LogEvent
 
 	if err := json.Unmarshal(event, &logentry); err != nil {
-
 		log.Warn().Err(err).Msgf("error:%s entry:%s", err.Error(), string(event))
-
 		return err
 	}
 
-	_, err := fmt.Printf("%s\n", w.formatLine(&logentry, true))
+	// Write to file instead of stdout, without color codes
+	formatted := w.formatLine(&logentry, false) + "\n"
+	_, err := w.file.Write([]byte(formatted))
 	if err != nil {
 		return err
 	}
@@ -262,12 +267,15 @@ func (w *FileWriter) writeLoopWithFormat() {
 			}
 		}
 
-		_, writeErr := w.file.Write(output)
-		if writeErr != nil {
-			fmt.Println("Write error:", writeErr)
-			w.mutex.Lock()
-			w.err = writeErr
-			w.mutex.Unlock()
+		// Check for duplicates before writing
+		if len(output) > 0 && !w.isDuplicate(output) {
+			_, writeErr := w.file.Write(output)
+			if writeErr != nil {
+				fmt.Println("Write error:", writeErr)
+				w.mutex.Lock()
+				w.err = writeErr
+				w.mutex.Unlock()
+			}
 		}
 	}
 }
@@ -277,32 +285,46 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	// Trim whitespace and validate JSON
 	trimmedData := bytes.TrimSpace(data)
 	if len(trimmedData) == 0 {
-		return nil, fmt.Errorf("empty log entry")
+		return []byte{}, nil // Return empty for empty input
 	}
 
 	// Clean up potential JSON corruption (multiple JSON objects on one line)
 	trimmedData = w.cleanJSONData(trimmedData)
 
-	// Check if data is already valid JSON
+	// Check if data is already in pipe format (avoid double processing)
+	dataStr := string(trimmedData)
+	if strings.Contains(dataStr, "|") && !strings.Contains(dataStr, "{") {
+		// Already pipe-delimited, just ensure it ends with newline
+		if !strings.HasSuffix(dataStr, "\n") {
+			dataStr += "\n"
+		}
+		return []byte(dataStr), nil
+	}
+
+	// Check if data is valid JSON
 	if !json.Valid(trimmedData) {
 		// Try to handle non-JSON data gracefully
 		return w.handleNonJSONData(trimmedData), nil
 	}
 
-	// First try to parse as a generic map to handle dynamic fields
+	// Parse as a generic map to handle dynamic fields
 	var genericEntry map[string]interface{}
 	if err := json.Unmarshal(trimmedData, &genericEntry); err != nil {
-		// Log detailed error for debugging but don't use circular logging
-		fmt.Fprintf(os.Stderr, "[DEBUG] JSON unmarshal failed for data: %q, error: %v\n", string(trimmedData), err)
 		// Return the original data as fallback
 		return w.handleNonJSONData(trimmedData), nil
 	}
 
 	// Extract fields with defaults
 	logEntry := LogEvent{}
+	
+	// Level
 	if level, ok := genericEntry["level"].(string); ok {
 		logEntry.Level = level
+	} else {
+		logEntry.Level = "info" // default level
 	}
+	
+	// Timestamp
 	if timeStr, ok := genericEntry["time"].(string); ok {
 		if parsedTime, err := time.Parse(time.RFC3339, timeStr); err == nil {
 			logEntry.Timestamp = parsedTime
@@ -312,17 +334,33 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	} else {
 		logEntry.Timestamp = time.Now()
 	}
+	
+	// Prefix
 	if prefix, ok := genericEntry["prefix"].(string); ok {
 		logEntry.Prefix = prefix
 	}
-	if correlationID, ok := genericEntry["correlationid"].(string); ok {
-		logEntry.CorrelationID = correlationID
-	}
+	
+	// Message
 	if message, ok := genericEntry["message"].(string); ok {
 		logEntry.Message = message
 	}
+	
+	// Error
 	if errorMsg, ok := genericEntry["error"].(string); ok {
 		logEntry.Error = errorMsg
+	}
+	
+	// CorrelationID
+	if correlationID, ok := genericEntry["correlationid"].(string); ok {
+		logEntry.CorrelationID = correlationID
+	}
+
+	// Store additional fields for potential use
+	logEntry.Fields = make(map[string]interface{})
+	for key, value := range genericEntry {
+		if key != "level" && key != "time" && key != "prefix" && key != "message" && key != "error" && key != "correlationid" {
+			logEntry.Fields[key] = value
+		}
 	}
 
 	// Format as standard log line
@@ -368,18 +406,85 @@ func (w *FileWriter) handleNonJSONData(data []byte) []byte {
 }
 
 func (w *FileWriter) formatLine(l *LogEvent, colour bool) string {
-
 	timestamp := l.Timestamp.Format(time.Stamp)
 
+	// Start with LEVEL|TIMEDATE
 	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
 
+	// Add PREFIX (always include the pipe, even if empty)
+	output += "|"
 	if l.Prefix != "" {
-		output += fmt.Sprintf("|%s", l.Prefix)
+		output += l.Prefix
 	}
 
+	// Add MESSAGE (always include the pipe, even if empty)
+	output += "|"
 	if l.Message != "" {
-		output += fmt.Sprintf("|%s", l.Message)
+		output += l.Message
+	}
+
+	// Add additional fields if present
+	if l.Error != "" {
+		output += "|error:" + l.Error
+	}
+	
+	if l.CorrelationID != "" {
+		output += "|correlationid:" + l.CorrelationID
+	}
+
+	// Add any other fields from the Fields map
+	if l.Fields != nil {
+		for key, value := range l.Fields {
+			if valueStr := fmt.Sprintf("%v", value); valueStr != "" {
+				output += fmt.Sprintf("|%s:%s", key, valueStr)
+			}
+		}
 	}
 
 	return output
+}
+
+// isDuplicate checks if the log entry is a duplicate based on content hash
+func (w *FileWriter) isDuplicate(data []byte) bool {
+	if w.recentHashes == nil {
+		w.recentHashes = make(map[string]time.Time)
+	}
+
+	// Create content hash (exclude timestamp to detect true content duplicates)
+	content := string(data)
+	
+	// Remove timestamp from hash calculation to detect content duplicates
+	// Find the second pipe (after level|timestamp|...)
+	pipes := strings.Split(content, "|")
+	if len(pipes) >= 3 {
+		// Reconstruct without timestamp for hashing
+		hashContent := pipes[0] // level
+		for i := 2; i < len(pipes); i++ { // skip timestamp
+			hashContent += "|" + pipes[i]
+		}
+		content = hashContent
+	}
+
+	hash := md5.Sum([]byte(content))
+	hashStr := hex.EncodeToString(hash[:])
+
+	w.hashMutex.Lock()
+	defer w.hashMutex.Unlock()
+
+	// Clean up old hashes (older than 5 minutes)
+	cutoff := time.Now().Add(-5 * time.Minute)
+	for h, t := range w.recentHashes {
+		if t.Before(cutoff) {
+			delete(w.recentHashes, h)
+		}
+	}
+
+	// Check if this hash exists recently
+	if _, exists := w.recentHashes[hashStr]; exists {
+		return true // It's a duplicate
+	}
+
+	// Add this hash to recent hashes
+	w.recentHashes[hashStr] = time.Now()
+	return false
 }
