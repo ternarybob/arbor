@@ -1,6 +1,7 @@
 package filewriter
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -200,6 +201,10 @@ func (w *FileWriter) writeline(event []byte) error {
 func (w *FileWriter) Close() error {
 	close(w.queue)
 	w.wg.Wait()
+	if w.file != nil {
+		w.file.Close()
+		w.file = nil
+	}
 	return w.err
 }
 
@@ -268,10 +273,25 @@ func (w *FileWriter) writeLoopWithFormat() {
 
 // convertJSONToStandardFormat converts JSON log data to standard pipe-separated format
 func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
+	// Trim whitespace and validate JSON
+	trimmedData := bytes.TrimSpace(data)
+	if len(trimmedData) == 0 {
+		return nil, fmt.Errorf("empty log entry")
+	}
+
+	// Check if data is already valid JSON
+	if !json.Valid(trimmedData) {
+		// Try to handle non-JSON data gracefully
+		return w.handleNonJSONData(trimmedData), nil
+	}
+
 	// First try to parse as a generic map to handle dynamic fields
 	var genericEntry map[string]interface{}
-	if err := json.Unmarshal(data, &genericEntry); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal log entry: %w", err)
+	if err := json.Unmarshal(trimmedData, &genericEntry); err != nil {
+		// Log detailed error for debugging but don't use circular logging
+		fmt.Fprintf(os.Stderr, "[FILEWRITER DEBUG] JSON unmarshal failed for data: %q, error: %v\n", string(trimmedData), err)
+		// Return the original data as fallback
+		return w.handleNonJSONData(trimmedData), nil
 	}
 
 	// Extract fields with defaults
@@ -304,6 +324,14 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	// Format as standard log line
 	formatted := w.formatLine(&logEntry, false) // false = no color codes for file
 	return []byte(formatted + "\n"), nil
+}
+
+// handleNonJSONData creates a basic log entry for non-JSON data
+func (w *FileWriter) handleNonJSONData(data []byte) []byte {
+	timestamp := time.Now().Format(time.Stamp)
+	// Create a simple log entry with the raw data as message
+	formatted := fmt.Sprintf("INF|%s|%s\n", timestamp, string(data))
+	return []byte(formatted)
 }
 
 func (w *FileWriter) formatLine(l *LogEvent, colour bool) string {

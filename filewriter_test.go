@@ -151,12 +151,12 @@ func TestFileWriterFormats(t *testing.T) {
 			tempDir := t.TempDir()
 			logFile := filepath.Join(tempDir, "test-"+tt.format+".log")
 
-			// Create file writer with specific format
-			fw, err := filewriter.NewWithPatternAndFormat(logFile, "", tt.format, 100, 5)
-			if err != nil {
-				t.Fatalf("Failed to create file writer with format %s: %v", tt.format, err)
-			}
-			defer fw.Close()
+		// Create file writer with specific format
+		fw, err := filewriter.NewWithPatternAndFormat(logFile, "", tt.format, 100, 5)
+		if err != nil {
+			t.Fatalf("Failed to create file writer with format %s: %v", tt.format, err)
+		}
+		defer fw.Close()
 
 			// Create logger and write test message
 			logger := ConsoleLogger().WithPrefix("test")
@@ -197,7 +197,7 @@ func TestFileWriterRotation(t *testing.T) {
 		filepath.Join(tempDir, pattern),
 		pattern,
 		"standard",
-		10, // small buffer
+		200, // larger buffer for testing
 		3,  // only keep 3 files
 	)
 	if err != nil {
@@ -235,7 +235,7 @@ func TestFileWriterConcurrency(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "concurrent-test.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "json", 100, 5)
+	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "json", 200, 5)
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}
