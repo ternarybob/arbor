@@ -62,7 +62,7 @@ func TestFileWriterWrite(t *testing.T) {
 func TestFileWriterDifferentLogLevels(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "loglevels-test.log")
-	
+
 	writer, err := NewWithPatternAndFormat(logFile, "", "standard", 100, 5)
 	if err != nil {
 		t.Fatalf("Failed to create FileWriter: %v", err)
@@ -86,12 +86,12 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 	for _, entry := range testEntries {
 		// Create JSON log entry
 		jsonEntry := `{"level":"` + entry.level + `","time":"2025-07-03T20:32:17+10:00","prefix":"","message":"` + entry.message + `","counter":` + string(rune(entry.counter+'0')) + `}`
-		
+
 		_, err := writer.Write([]byte(jsonEntry))
 		if err != nil {
 			t.Errorf("Failed to write %s level entry: %v", entry.level, err)
 		}
-		
+
 		// Small delay between writes
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -114,13 +114,13 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 		if !strings.Contains(output, level) {
 			t.Errorf("Log output missing level: %s", level)
 		}
-		
+
 		// Also check that the message content is present
 		expectedMessage := testEntries[i].message
 		if !strings.Contains(output, expectedMessage) {
 			t.Errorf("Log output missing message: %s", expectedMessage)
 		}
-		
+
 		// Check counter field
 		expectedCounter := "counter:" + string(rune(testEntries[i].counter+'0'))
 		if !strings.Contains(output, expectedCounter) {
@@ -134,13 +134,13 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 		if line == "" {
 			continue
 		}
-		
+
 		// Each line should have at least 4 pipe-separated fields: LEVEL|TIME|PREFIX|MESSAGE
 		parts := strings.Split(line, "|")
 		if len(parts) < 4 {
 			t.Errorf("Log line should have at least 4 pipe-separated fields, got %d: %s", len(parts), line)
 		}
-		
+
 		// First field should be a valid log level
 		level := parts[0]
 		validLevels := []string{"TRC", "DBG", "INF", "WRN", "ERR", "FTL"}
