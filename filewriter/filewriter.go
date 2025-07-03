@@ -324,14 +324,11 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	// Extract fields with defaults
 	logEntry := LogEvent{}
 
-	// Level - convert to uppercase 3-letter format
+	// Level - use the level as-is for levelprint function to handle
 	if level, ok := genericEntry["level"].(string); ok {
-		logEntry.Level = strings.ToUpper(level)
-		if len(logEntry.Level) > 3 {
-			logEntry.Level = logEntry.Level[:3]
-		}
+		logEntry.Level = level
 	} else {
-		logEntry.Level = "INF" // default level
+		logEntry.Level = "info" // default level
 	}
 
 	// Timestamp
