@@ -25,6 +25,14 @@ var (
 	internallog zerolog.Logger = zerolog.New(&consolewriter.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(loglevel)
 )
 
+// New creates a new GinWriter instance
+func New() *GinWriter {
+	return &GinWriter{
+		Out:   os.Stdout,
+		Level: zerolog.InfoLevel,
+	}
+}
+
 type LogEvent struct {
 	Level         *LevelMetadata `json:"level"`
 	Time          time.Time      `json:"-"`

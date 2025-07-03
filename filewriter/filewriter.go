@@ -79,6 +79,48 @@ func NewWithPath(filePath string, bufferSize, maxFiles int) (*FileWriter, error)
 	return fw, nil
 }
 
+// NewWithPatternAndFormat creates a new FileWriter with custom naming pattern and format
+// pattern: file naming pattern with placeholders like {YYMMDD}, {SERVICE}, etc.
+// format: "standard" for console-like format, "json" for JSON format
+func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFiles int) (*FileWriter, error) {
+	// If pattern is provided, expand it to create the actual filename
+	if pattern != "" {
+		dir := filepath.Dir(filePath)
+		baseName := expandFileNamePattern(pattern, "")
+		filePath = filepath.Join(dir, baseName)
+	}
+
+	// Create directory if needed
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	// Open file
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
+	}
+
+	// Create FileWriter with enhanced fields
+	fw := &FileWriter{
+		file:     file,
+		queue:    make(chan WriteTask, bufferSize),
+		wg:       sync.WaitGroup{},
+		logFormat: format,
+		pattern:  pattern,
+		filePath: filePath,
+	}
+
+	fw.wg.Add(1)
+	go fw.writeLoopWithFormat()
+
+	// Handle file rotation
+	fw.rotateFiles(filePath, maxFiles)
+
+	return fw, nil
+}
+
 // rotateFiles rotates the log files to ensure no more than maxFiles are kept
 func (w *FileWriter) rotateFiles(filePath string, maxFiles int) {
 	// Get directory for rotation
@@ -177,47 +219,7 @@ func (w *FileWriter) writeLoop() {
 	}
 }
 
-// NewWithPatternAndFormat creates a new FileWriter with custom naming pattern and format
-// pattern: file naming pattern with placeholders like {YYMMDD}, {SERVICE}, etc.
-// format: "standard" for console-like format, "json" for JSON format
-func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFiles int) (*FileWriter, error) {
-	// If pattern is provided, expand it to create the actual filename
-	if pattern != "" {
-		dir := filepath.Dir(filePath)
-		baseName := expandFileNamePattern(pattern, "")
-		filePath = filepath.Join(dir, baseName)
-	}
 
-	// Create directory if needed
-	dir := filepath.Dir(filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
-	}
-
-	// Open file
-	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
-	}
-
-	// Create FileWriter with enhanced fields
-	fw := &FileWriter{
-		file:     file,
-		queue:    make(chan WriteTask, bufferSize),
-		wg:       sync.WaitGroup{},
-		logFormat: format,
-		pattern:  pattern,
-		filePath: filePath,
-	}
-
-	fw.wg.Add(1)
-	go fw.writeLoopWithFormat()
-
-	// Handle file rotation
-	fw.rotateFiles(filePath, maxFiles)
-
-	return fw, nil
-}
 
 // expandFileNamePattern expands placeholders in filename patterns
 func expandFileNamePattern(pattern, serviceName string) string {

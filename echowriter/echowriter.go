@@ -1,4 +1,4 @@
-package ginwriter
+package echowriter
 
 import (
 	"encoding/json"
@@ -21,9 +21,17 @@ type EchoWriter struct {
 
 var (
 	loglevel    zerolog.Level  = zerolog.WarnLevel
-	prefix      string         = "GinWriter"
+	prefix      string         = "EchoWriter"
 	internallog zerolog.Logger = zerolog.New(&consolewriter.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(loglevel)
 )
+
+// New creates a new EchoWriter instance
+func New() *EchoWriter {
+	return &EchoWriter{
+		Out:   os.Stdout,
+		Level: zerolog.InfoLevel,
+	}
+}
 
 type LogEvent struct {
 	Level         *LevelMetadata `json:"level"`
