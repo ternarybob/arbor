@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,12 +23,15 @@ type WriteTask struct {
 }
 
 type FileWriter struct {
-	mutex sync.Mutex
-	file  *os.File
-	queue chan WriteTask
-	wg    sync.WaitGroup
-	err   error
-	Log   []string
+	mutex    sync.Mutex
+	file     *os.File
+	queue    chan WriteTask
+	wg       sync.WaitGroup
+	err      error
+	Log      []string
+	logFormat   string // "standard" or "json"
+	pattern  string // file naming pattern
+	filePath string // current file path
 }
 
 type LogEvent struct {
@@ -140,7 +144,7 @@ func (w *FileWriter) writeline(event []byte) error {
 		return err
 	}
 
-	_, err := fmt.Printf("%s\n", w.format(&logentry, true))
+	_, err := fmt.Printf("%s\n", w.formatLine(&logentry, true))
 	if err != nil {
 		return err
 	}
@@ -171,7 +175,108 @@ func (w *FileWriter) writeLoop() {
 	}
 }
 
-func (w *FileWriter) format(l *LogEvent, colour bool) string {
+// NewWithPatternAndFormat creates a new FileWriter with custom naming pattern and format
+// pattern: file naming pattern with placeholders like {YYMMDD}, {SERVICE}, etc.
+// format: "standard" for console-like format, "json" for JSON format
+func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFiles int) (*FileWriter, error) {
+	// If pattern is provided, expand it to create the actual filename
+	if pattern != "" {
+		dir := filepath.Dir(filePath)
+		baseName := expandFileNamePattern(pattern, "")
+		filePath = filepath.Join(dir, baseName)
+	}
+
+	// Create directory if needed
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	// Open file
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
+	}
+
+	// Create FileWriter with enhanced fields
+	fw := &FileWriter{
+		file:     file,
+		queue:    make(chan WriteTask, bufferSize),
+		wg:       sync.WaitGroup{},
+		logFormat: format,
+		pattern:  pattern,
+		filePath: filePath,
+	}
+
+	fw.wg.Add(1)
+	go fw.writeLoopWithFormat()
+
+	// Handle file rotation
+	fw.rotateFiles(filePath, maxFiles)
+
+	return fw, nil
+}
+
+// expandFileNamePattern expands placeholders in filename patterns
+func expandFileNamePattern(pattern, serviceName string) string {
+	now := time.Now()
+
+	expanded := strings.ReplaceAll(pattern, "{SERVICE}", serviceName)
+	expanded = strings.ReplaceAll(expanded, "{YYMMDD}", now.Format("060102"))
+	expanded = strings.ReplaceAll(expanded, "{YYMMDD-HH}", now.Format("060102-15"))
+	expanded = strings.ReplaceAll(expanded, "{YYMMDD-HHMMSS}", now.Format("060102-150405"))
+	expanded = strings.ReplaceAll(expanded, "{TT}", now.Format("15"))
+	expanded = strings.ReplaceAll(expanded, "{YYYY}", now.Format("2006"))
+	expanded = strings.ReplaceAll(expanded, "{MM}", now.Format("01"))
+	expanded = strings.ReplaceAll(expanded, "{DD}", now.Format("02"))
+	expanded = strings.ReplaceAll(expanded, "{HH}", now.Format("15"))
+	expanded = strings.ReplaceAll(expanded, "{MMSS}", now.Format("0405"))
+
+	return expanded
+}
+
+// writeLoopWithFormat processes tasks with format-specific handling
+func (w *FileWriter) writeLoopWithFormat() {
+	defer w.wg.Done()
+	for task := range w.queue {
+		var output []byte
+		var err error
+
+		if w.logFormat == "json" {
+			// Write JSON format directly
+			output = task.data
+		} else {
+			// Convert JSON to standard format
+			output, err = w.convertJSONToStandardFormat(task.data)
+			if err != nil {
+				fmt.Printf("Format conversion error: %v\n", err)
+				output = task.data // Fallback to original data
+			}
+		}
+
+		_, writeErr := w.file.Write(output)
+		if writeErr != nil {
+			fmt.Println("Write error:", writeErr)
+			w.mutex.Lock()
+			w.err = writeErr
+			w.mutex.Unlock()
+		}
+	}
+}
+
+// convertToStandardFormat converts JSON log data to standard pipe-separated format
+func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
+	var logEntry LogEvent
+	if err := json.Unmarshal(data, &logEntry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal log entry: %w", err)
+	}
+
+	// Format as standard log line
+	formatted := w.formatLine(&logEntry, false) // false = no color codes for file
+	return []byte(formatted + "\n"), nil
+}
+
+func (w *FileWriter) formatLine(l *LogEvent, colour bool) string {
 
 	timestamp := l.Timestamp.Format(time.Stamp)
 

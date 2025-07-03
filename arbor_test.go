@@ -115,6 +115,14 @@ func (m *mockConsoleLogger) WithFileWriterPath(name string, filePath string, buf
 	return m, nil
 }
 
+func (m *mockConsoleLogger) WithFileWriterCustom(name string, fileWriter io.Writer) (IConsoleLogger, error) {
+	return m, nil
+}
+
+func (m *mockConsoleLogger) WithFileWriterPattern(name string, pattern string, format string, bufferSize, maxFiles int) (IConsoleLogger, error) {
+	return m, nil
+}
+
 func (m *mockConsoleLogger) GinWriter() io.Writer {
 	return &bytes.Buffer{}
 }

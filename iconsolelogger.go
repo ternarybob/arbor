@@ -28,6 +28,10 @@ type IConsoleLogger interface {
 
 	WithFileWriterPath(name string, filePath string, bufferSize, maxFiles int) (IConsoleLogger, error)
 
+	WithFileWriterCustom(name string, fileWriter io.Writer) (IConsoleLogger, error)
+
+	WithFileWriterPattern(name string, pattern string, format string, bufferSize, maxFiles int) (IConsoleLogger, error)
+
 	GinWriter() io.Writer
 
 	GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error)

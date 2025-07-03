@@ -312,6 +312,22 @@ func (d *consolelogger) WithFileWriterPath(name string, filePath string, bufferS
 	return d.WithWriter(name, fileWriter), nil
 }
 
+func (d *consolelogger) WithFileWriterCustom(name string, fileWriter io.Writer) (IConsoleLogger, error) {
+	// Use the existing WithWriter method
+	return d.WithWriter(name, fileWriter), nil
+}
+
+func (d *consolelogger) WithFileWriterPattern(name string, pattern string, format string, bufferSize, maxFiles int) (IConsoleLogger, error) {
+	// Create enhanced file writer with pattern and format
+	fileWriter, err := filewriter.NewWithPatternAndFormat("", pattern, format, bufferSize, maxFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use the existing WithWriter method
+	return d.WithWriter(name, fileWriter), nil
+}
+
 func (d *consolelogger) GinWriter() io.Writer {
 	// Import ginwriter for this to work
 	return &ginwriter.GinWriter{
