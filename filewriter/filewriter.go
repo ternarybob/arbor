@@ -35,12 +35,14 @@ type FileWriter struct {
 }
 
 type LogEvent struct {
-	Level         string    `json:"level"`
-	Timestamp     time.Time `json:"time"`
-	Prefix        string    `json:"prefix"`
-	CorrelationID string    `json:"correlationid"`
-	Message       string    `json:"message"`
-	Error         string    `json:"error"`
+	Level         string                 `json:"level"`
+	Timestamp     time.Time              `json:"time"`
+	Prefix        string                 `json:"prefix"`
+	CorrelationID string                 `json:"correlationid"`
+	Message       string                 `json:"message"`
+	Error         string                 `json:"error"`
+	// Additional fields to handle zerolog output
+	Fields        map[string]interface{} `json:"-"`
 }
 
 func New(file *os.File, bufferSize int) *FileWriter {
@@ -264,11 +266,39 @@ func (w *FileWriter) writeLoopWithFormat() {
 	}
 }
 
-// convertToStandardFormat converts JSON log data to standard pipe-separated format
+// convertJSONToStandardFormat converts JSON log data to standard pipe-separated format
 func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
-	var logEntry LogEvent
-	if err := json.Unmarshal(data, &logEntry); err != nil {
+	// First try to parse as a generic map to handle dynamic fields
+	var genericEntry map[string]interface{}
+	if err := json.Unmarshal(data, &genericEntry); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal log entry: %w", err)
+	}
+
+	// Extract fields with defaults
+	logEntry := LogEvent{}
+	if level, ok := genericEntry["level"].(string); ok {
+		logEntry.Level = level
+	}
+	if timeStr, ok := genericEntry["time"].(string); ok {
+		if parsedTime, err := time.Parse(time.RFC3339, timeStr); err == nil {
+			logEntry.Timestamp = parsedTime
+		} else {
+			logEntry.Timestamp = time.Now()
+		}
+	} else {
+		logEntry.Timestamp = time.Now()
+	}
+	if prefix, ok := genericEntry["prefix"].(string); ok {
+		logEntry.Prefix = prefix
+	}
+	if correlationID, ok := genericEntry["correlationid"].(string); ok {
+		logEntry.CorrelationID = correlationID
+	}
+	if message, ok := genericEntry["message"].(string); ok {
+		logEntry.Message = message
+	}
+	if errorMsg, ok := genericEntry["error"].(string); ok {
+		logEntry.Error = errorMsg
 	}
 
 	// Format as standard log line

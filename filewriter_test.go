@@ -148,6 +148,7 @@ func TestFileWriterFormats(t *testing.T) {
 func TestFileWriterRotation(t *testing.T) {
 	// Test file rotation functionality
 	tempDir := t.TempDir()
+	defer func() { os.RemoveAll(tempDir) }()
 	pattern := "test-{YYMMDD}.log"
 	
 	// Create file writer with low max files for testing
@@ -245,10 +246,10 @@ func TestFileWriterConcurrency(t *testing.T) {
 func expandFileNamePattern(pattern, serviceName string) string {
 	now := time.Now()
 	
-	expanded := strings.ReplaceAll(pattern, "{SERVICE}", serviceName)
-	expanded = strings.ReplaceAll(expanded, "{YYMMDD}", now.Format("060102"))
-	expanded = strings.ReplaceAll(expanded, "{YYMMDD-HH}", now.Format("060102-15"))
+expanded := strings.ReplaceAll(pattern, "{SERVICE}", serviceName)
 	expanded = strings.ReplaceAll(expanded, "{YYMMDD-HHMMSS}", now.Format("060102-150405"))
+	expanded = strings.ReplaceAll(expanded, "{YYMMDD-HH}", now.Format("060102-15"))
+	expanded = strings.ReplaceAll(expanded, "{YYMMDD}", now.Format("060102"))
 	expanded = strings.ReplaceAll(expanded, "{TT}", now.Format("15"))
 	expanded = strings.ReplaceAll(expanded, "{YYYY}", now.Format("2006"))
 	expanded = strings.ReplaceAll(expanded, "{MM}", now.Format("01"))
