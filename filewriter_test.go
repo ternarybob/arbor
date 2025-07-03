@@ -1,6 +1,7 @@
 package arbor
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,7 +168,7 @@ func TestFileWriterRotation(t *testing.T) {
 	// Write multiple entries to trigger rotation
 	for i := 0; i < 100; i++ {
 		_, err := fw.Write([]byte(`{"level":"info","message":"test message ` + 
-			string(rune(i)) + `"}` + "\n"))
+			fmt.Sprintf("%d", i) + `"}` + "\n"))
 		if err != nil {
 			t.Errorf("Failed to write log entry %d: %v", i, err)
 		}
@@ -208,7 +209,7 @@ func TestFileWriterConcurrency(t *testing.T) {
 			
 			for j := 0; j < 10; j++ {
 				message := `{"level":"info","message":"concurrent test from goroutine ` + 
-					string(rune(id)) + ` iteration ` + string(rune(j)) + `"}` + "\n"
+					fmt.Sprintf("%d", id) + ` iteration ` + fmt.Sprintf("%d", j) + `"}` + "\n"
 				_, err := fw.Write([]byte(message))
 				if err != nil {
 					t.Errorf("Goroutine %d failed to write: %v", id, err)
