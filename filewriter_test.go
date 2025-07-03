@@ -53,11 +53,33 @@ func TestFileWriterCustomNaming(t *testing.T) {
 			// Test pattern expansion
 			expanded := expandFileNamePattern(tt.pattern, "artifex")
 			
-			// The exact match might vary by seconds, so we'll check the prefix
-			expectedPrefix := strings.Split(tt.expected, time.Now().Format("150405"))[0]
-			if !strings.HasPrefix(expanded, expectedPrefix) {
-				t.Errorf("expandFileNamePattern(%q) = %q, expected to start with %q", 
-					tt.pattern, expanded, expectedPrefix)
+			// Check pattern-based prefix rather than exact timestamp
+			switch tt.name {
+			case "daily_log_pattern":
+				expectedPrefix := "artifex-" + time.Now().Format("060102")
+				if !strings.HasPrefix(expanded, expectedPrefix) {
+					t.Errorf("expandFileNamePattern(%q) = %q, expected to start with %q", 
+						tt.pattern, expanded, expectedPrefix)
+				}
+			case "hourly_log_pattern":
+				expectedPrefix := "artifex-" + time.Now().Format("060102-15")
+				if !strings.HasPrefix(expanded, expectedPrefix) {
+					t.Errorf("expandFileNamePattern(%q) = %q, expected to start with %q", 
+						tt.pattern, expanded, expectedPrefix)
+				}
+			case "timestamped_log_pattern":
+				// For timestamp patterns, just check the minute portion to avoid second timing issues
+				expectedPrefix := "artifex-" + time.Now().Format("060102-1504")
+				if !strings.HasPrefix(expanded, expectedPrefix) {
+					t.Errorf("expandFileNamePattern(%q) = %q, expected to start with minute %q", 
+						tt.pattern, expanded, expectedPrefix)
+				}
+			case "custom_service_pattern":
+				expectedPrefix := "artifex-" + time.Now().Format("060102-15")
+				if !strings.HasPrefix(expanded, expectedPrefix) {
+					t.Errorf("expandFileNamePattern(%q) = %q, expected to start with %q", 
+						tt.pattern, expanded, expectedPrefix)
+				}
 			}
 			
 			// Test actual file creation

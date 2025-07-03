@@ -15,7 +15,11 @@ func TestFileWriterCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create FileWriter: %v", err)
 	}
-	defer writer.Close()
+	
+	// Immediately close to avoid file lock issues
+	if writer != nil {
+		writer.Close()
+	}
 	
 	if writer == nil {
 		t.Error("FileWriter should not be nil after creation")
