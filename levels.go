@@ -2,8 +2,8 @@ package arbor
 
 import (
 	"fmt"
-	"strings"
 	"github.com/phuslu/log"
+	"strings"
 )
 
 // Level type for arbor logging levels

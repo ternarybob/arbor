@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-
 	"github.com/gookit/color"
 	"github.com/phuslu/log"
 )
@@ -19,8 +18,8 @@ type GinWriter struct {
 }
 
 var (
-	loglevel    log.Level = log.WarnLevel
-	prefix      string    = "GinWriter"
+	loglevel    log.Level  = log.WarnLevel
+	prefix      string     = "GinWriter"
 	internallog log.Logger = log.Logger{
 		Level:  loglevel,
 		Writer: &log.ConsoleWriter{},
@@ -71,7 +70,7 @@ func (w *GinWriter) Write(e []byte) (n int, err error) {
 func (w *GinWriter) writeline(event []byte) error {
 
 	var (
-	// Use direct logging instead of chained logger
+		// Use direct logging instead of chained logger
 		logentry LogEvent
 	)
 

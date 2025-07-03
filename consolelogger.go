@@ -88,7 +88,7 @@ func (d *consolelogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
 
 	var (
 		// Use direct logging instead of chained logger
-		writers     []io.Writer
+		writers []io.Writer
 	)
 
 	if ctx == nil {
@@ -334,7 +334,7 @@ func (d *consolelogger) WithFunction() IConsoleLogger {
 
 func (d *consolelogger) WithContext(key string, value string) IConsoleLogger {
 
-		// phuslu/log doesn't support runtime modification like this
+	// phuslu/log doesn't support runtime modification like this
 
 	return d
 
@@ -342,7 +342,7 @@ func (d *consolelogger) WithContext(key string, value string) IConsoleLogger {
 
 func (d *consolelogger) WithCorrelationid(value string) {
 
-		// phuslu/log doesn't support runtime modification like this
+	// phuslu/log doesn't support runtime modification like this
 
 }
 

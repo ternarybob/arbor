@@ -12,11 +12,11 @@ import (
 )
 
 type FileWriter struct {
-	logger      *log.Logger
-	filePath    string
-	maxFiles    int
-	fileWriter  *os.File
-	minLevel    log.Level
+	logger     *log.Logger
+	filePath   string
+	maxFiles   int
+	fileWriter *os.File
+	minLevel   log.Level
 }
 
 func NewWithPath(filePath string, bufferSize, maxFiles int) (*FileWriter, error) {
@@ -38,9 +38,9 @@ func NewWithPathAndLevel(filePath string, bufferSize, maxFiles int, minLevel log
 
 	// Create Logger with console writer that writes to file
 	logger := &log.Logger{
-		Level:  minLevel,
+		Level: minLevel,
 		Writer: &log.ConsoleWriter{
-			Writer: file,
+			Writer:      file,
 			ColorOutput: false,
 		},
 	}
@@ -102,12 +102,12 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 	if jsonErr := json.Unmarshal([]byte(input), &entry); jsonErr == nil {
 		// Successfully parsed JSON - log at the specified level
 		level := parseLogLevel(entry.Level)
-		
+
 		// Check if this level should be logged based on minimum level
 		if level < fw.minLevel {
 			return len(p), nil // Skip this log entry
 		}
-		
+
 		// Log at the appropriate level with message and fields
 		switch level {
 		case log.TraceLevel:
@@ -133,7 +133,7 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 		// Not JSON, log as-is at info level
 		fw.logger.Info().Msg(input)
 	}
-	
+
 	return len(p), nil
 }
 
@@ -149,7 +149,7 @@ func (fw *FileWriter) Close() error {
 func New(file *os.File, bufferSize int) *FileWriter {
 	filePath := file.Name()
 	file.Close()
-	
+
 	fw, err := NewWithPath(filePath, bufferSize, 10) // default 10 max files
 	if err != nil {
 		// fallback to a basic file writer on error

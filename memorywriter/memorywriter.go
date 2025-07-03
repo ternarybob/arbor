@@ -32,10 +32,10 @@ const (
 )
 
 var (
-	loglevel    log.Level = log.InfoLevel
+	loglevel    log.Level  = log.InfoLevel
 	internallog log.Logger = log.Logger{
 		Level:  loglevel,
-	Writer: &log.ConsoleWriter{},
+		Writer: &log.ConsoleWriter{},
 	}
 
 	// In-memory storage with mutex for thread safety
@@ -118,7 +118,7 @@ func (w *MemoryWriter) writeline(event []byte) error {
 
 func GetEntries(correlationid string) (map[string]string, error) {
 	var (
-	// Use direct logging instead of stored logger
+		// Use direct logging instead of stored logger
 		entries map[string]string = make(map[string]string)
 	)
 
@@ -151,7 +151,7 @@ func GetEntries(correlationid string) (map[string]string, error) {
 // GetEntriesWithLevel returns log entries filtered by minimum log level
 func GetEntriesWithLevel(correlationid string, minLevel log.Level) (map[string]string, error) {
 	var (
-	// Use direct logging instead of stored logger
+		// Use direct logging instead of stored logger
 		entries map[string]string = make(map[string]string)
 	)
 

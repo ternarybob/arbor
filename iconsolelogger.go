@@ -4,11 +4,11 @@ import (
 	"io"
 
 	"github.com/labstack/echo/v4"
-"github.com/phuslu/log"
+	"github.com/phuslu/log"
 )
 
 type IConsoleLogger interface {
-GetLogger() *log.Logger
+	GetLogger() *log.Logger
 
 	GetLevel() Level
 

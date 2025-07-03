@@ -116,7 +116,6 @@ func TestFileWriterCustomNaming(t *testing.T) {
 	}
 }
 
-
 func TestFileWriterRotation(t *testing.T) {
 	// Test file rotation functionality
 	tempDir := t.TempDir()
@@ -160,7 +159,6 @@ func TestFileWriterRotation(t *testing.T) {
 
 	t.Logf("Created %d log files: %v", len(files), files)
 }
-
 
 func TestFileWriterConcurrency(t *testing.T) {
 	// Test concurrent writing to file logger

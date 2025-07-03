@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	loglevel    log.Level = log.WarnLevel
+	loglevel    log.Level  = log.WarnLevel
 	internallog log.Logger = log.Logger{
 		Level:  loglevel,
 		Writer: &log.ConsoleWriter{},
@@ -106,4 +106,3 @@ func (w *ConsoleWriter) format(l *LogEvent, colour bool) string {
 
 	return output
 }
-
