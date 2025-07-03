@@ -381,13 +381,13 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 // extractFirstCompleteJSON extracts the first complete JSON object from data
 func (w *FileWriter) extractFirstCompleteJSON(data []byte) []byte {
 	dataStr := string(data)
-	
+
 	// Find the first opening brace
 	start := strings.Index(dataStr, "{")
 	if start == -1 {
 		return []byte{}
 	}
-	
+
 	// Find the matching closing brace
 	braceCount := 0
 	for i := start; i < len(dataStr); i++ {
@@ -398,11 +398,11 @@ func (w *FileWriter) extractFirstCompleteJSON(data []byte) []byte {
 			braceCount--
 			if braceCount == 0 {
 				// Found the end of the first complete JSON object
-				return []byte(dataStr[start:i+1])
+				return []byte(dataStr[start : i+1])
 			}
 		}
 	}
-	
+
 	// If we didn't find a complete JSON object, return empty
 	return []byte{}
 }
