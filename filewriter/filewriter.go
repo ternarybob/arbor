@@ -409,7 +409,7 @@ func (w *FileWriter) handleNonJSONData(data []byte) []byte {
 func (w *FileWriter) createFallbackFormattedLine(data []byte) []byte {
 	timestamp := time.Now().Format(time.Stamp)
 	dataStr := strings.TrimSpace(string(data))
-	
+
 	// If the data looks like it might contain JSON, try to extract a message
 	if strings.Contains(dataStr, "{") && strings.Contains(dataStr, "}") {
 		// Try to extract message from partial JSON
@@ -424,12 +424,12 @@ func (w *FileWriter) createFallbackFormattedLine(data []byte) []byte {
 				}
 			}
 		}
-		
+
 		// If we can't extract a message, indicate it's corrupted JSON
 		formatted := fmt.Sprintf("INF|%s||[Corrupted JSON data]\n", timestamp)
 		return []byte(formatted)
 	}
-	
+
 	// For non-JSON data, treat as a plain message
 	formatted := fmt.Sprintf("INF|%s||%s\n", timestamp, dataStr)
 	return []byte(formatted)

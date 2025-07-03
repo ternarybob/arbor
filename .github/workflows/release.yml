@@ -5,10 +5,82 @@ on:
     tags:
       - 'v*'
 
+env:
+  GO_VERSION: '1.24'
+
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Clean Go modcache before restore
+      run: go clean -modcache || true
+      
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-v2
+        restore-keys: |
+          ${{ runner.os }}-go-
+      continue-on-error: true
+          
+    - name: Clean and download dependencies
+      run: |
+        # Clean module cache if there are issues
+        go clean -modcache || true
+        
+        # Download dependencies with proper error handling
+        if ! go mod download; then
+          echo "Error: Failed to download Go modules"
+          echo "Attempting to clean and retry..."
+          go clean -modcache
+          go mod download
+        fi
+        
+        # Verify modules are properly downloaded
+        go mod verify
+      
+    - name: Run tests
+      run: go test -v ./...
+      
+    - name: Run go vet
+      run: go vet ./...
+      
+    - name: Check formatting
+      run: |
+        UNFORMATTED=$(gofmt -s -l .)
+        if [ -n "$UNFORMATTED" ]; then
+          echo "⚠️  The following files are not formatted properly:"
+          echo "$UNFORMATTED"
+          echo ""
+          echo "💡 To fix, run: gofmt -s -w ."
+          echo ""
+          echo "🔧 Showing formatting differences:"
+          gofmt -s -d .
+          exit 1
+        else
+          echo "✅ All files are properly formatted"
+        fi
+        
+    - name: Build
+      run: go build ./...
+
   release:
     name: Create Release
     runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: write
     
