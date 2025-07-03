@@ -51,12 +51,13 @@ func New(file *os.File, bufferSize int) *FileWriter {
 	// fileWriter, _ := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
 
 	w := &FileWriter{
-		file:  file,
-		queue: make(chan WriteTask, bufferSize),
-		wg:    sync.WaitGroup{},
+		file:      file,
+		queue:     make(chan WriteTask, bufferSize),
+		wg:        sync.WaitGroup{},
+		logFormat: "standard", // Default to standard format, not JSON
 	}
 	w.wg.Add(1)
-	go w.writeLoop()
+	go w.writeLoopWithFormat() // Use formatted output by default
 	return w
 
 }
@@ -372,20 +373,12 @@ func (w *FileWriter) formatLine(l *LogEvent, colour bool) string {
 
 	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
 
-	if l.CorrelationID != "" {
-		output += fmt.Sprintf("|%s", l.CorrelationID)
-	}
-
 	if l.Prefix != "" {
-		output += fmt.Sprintf("|%-55s", l.Prefix)
+		output += fmt.Sprintf("|%s", l.Prefix)
 	}
 
 	if l.Message != "" {
 		output += fmt.Sprintf("|%s", l.Message)
-	}
-
-	if l.Error != "" {
-		output += fmt.Sprintf("|%s", l.Error)
 	}
 
 	return output
