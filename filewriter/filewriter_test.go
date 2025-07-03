@@ -7,7 +7,9 @@ import (
 	"time"
 )
 
+// Test File Writeer
 func TestFileWriterCreation(t *testing.T) {
+
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "test.log")
 
