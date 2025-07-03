@@ -18,6 +18,8 @@ type IConsoleLogger interface {
 
 	WithPrefix(value string) IConsoleLogger
 
+	WithPrefixExtend(value string) IConsoleLogger
+
 	WithCorrelationId(value string) IConsoleLogger
 
 	WithLevel(lvl Level) IConsoleLogger

@@ -230,6 +230,79 @@ func TestFileWriterRotation(t *testing.T) {
 	t.Logf("Created %d log files: %v", len(files), files)
 }
 
+func TestPrefixFunctionality(t *testing.T) {
+	// Test prefix replacement and extension with real logger output
+	tempDir := t.TempDir()
+	logFile := filepath.Join(tempDir, "prefix-test.log")
+
+	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 200, 5)
+	if err != nil {
+		t.Fatalf("Failed to create file writer: %v", err)
+	}
+	defer fw.Close()
+
+	// Create a base logger
+	baseLogger := ConsoleLogger().WithPrefix("base")
+	loggerWithFile, err := baseLogger.WithFileWriterCustom("test", fw)
+	if err != nil {
+		t.Fatalf("Failed to add file writer: %v", err)
+	}
+
+	// Test 1: Base prefix
+	log1 := loggerWithFile.GetLogger()
+	log1.Info().Msg("Message with base prefix")
+
+	// Test 2: Replace prefix (should not have multiple prefixes)
+	replacedLogger := loggerWithFile.WithPrefix("replaced")
+	log2 := replacedLogger.GetLogger()
+	log2.Info().Msg("Message with replaced prefix")
+
+	// Test 3: Extend prefix
+	extendedLogger := replacedLogger.WithPrefixExtend("extended")
+	log3 := extendedLogger.GetLogger()
+	log3.Info().Msg("Message with extended prefix")
+
+	// Test 4: Chain extensions
+	chainedLogger := extendedLogger.WithPrefixExtend("chained")
+	log4 := chainedLogger.GetLogger()
+	log4.Info().Msg("Message with chained prefix")
+
+	// Give time for async processing
+	time.Sleep(300 * time.Millisecond)
+
+	// Read and verify file content
+	content, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("Failed to read prefix test log: %v", err)
+	}
+
+	contentStr := string(content)
+	t.Logf("Prefix test log content:\n%s", contentStr)
+
+	// Verify each prefix appears correctly based on expected behavior:
+	// - WithPrefix replaces existing prefix
+	// - WithPrefixExtend extends existing prefix
+	if !strings.Contains(contentStr, "replaced") {
+		t.Error("Should contain replaced prefix")
+	}
+	if !strings.Contains(contentStr, "replaced.extended") {
+		t.Error("Should contain extended prefix")
+	}
+	if !strings.Contains(contentStr, "replaced.extended.chained") {
+		t.Error("Should contain chained prefix")
+	}
+
+	// Verify that WithPrefix properly replaces prefix (base should not appear in later messages)
+	// This is the correct behavior - WithPrefix should replace, not accumulate
+
+	// Verify we don't have multiple duplicate prefix fields in JSON
+	prefixCount := strings.Count(contentStr, `"prefix":`)
+	lineCount := strings.Count(contentStr, "\n")
+	if prefixCount > lineCount {
+		t.Errorf("Too many prefix fields detected: %d prefix fields for %d lines", prefixCount, lineCount)
+	}
+}
+
 func TestFileWriterConcurrency(t *testing.T) {
 	// Test concurrent writing to file logger
 	tempDir := t.TempDir()

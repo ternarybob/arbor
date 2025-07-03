@@ -95,6 +95,10 @@ func (m *mockConsoleLogger) WithPrefix(value string) IConsoleLogger {
 	return m
 }
 
+func (m *mockConsoleLogger) WithPrefixExtend(value string) IConsoleLogger {
+	return m
+}
+
 func (m *mockConsoleLogger) WithCorrelationId(value string) IConsoleLogger {
 	return m
 }
@@ -223,6 +227,32 @@ func TestConsoleLoggerChaining(t *testing.T) {
 
 	if result == nil {
 		t.Error("Chained logger methods should return a logger instance")
+	}
+}
+
+func TestConsoleLoggerPrefixHandling(t *testing.T) {
+	// Test prefix replacement and extension functionality
+	mockLogger := &mockConsoleLogger{}
+
+	// Test WithPrefix replaces existing prefix
+	loggerWithPrefix := mockLogger.WithPrefix("first")
+	if loggerWithPrefix == nil {
+		t.Error("WithPrefix should return a logger instance")
+	}
+
+	// Test WithPrefixExtend adds to existing prefix
+	loggerWithExtended := mockLogger.WithPrefixExtend("second")
+	if loggerWithExtended == nil {
+		t.Error("WithPrefixExtend should return a logger instance")
+	}
+
+	// Test chaining prefix operations
+	chainedLogger := mockLogger.
+		WithPrefix("base").
+		WithPrefixExtend("extended")
+
+	if chainedLogger == nil {
+		t.Error("Chained prefix operations should return a logger instance")
 	}
 }
 

@@ -36,8 +36,9 @@ var (
 )
 
 type consolelogger struct {
-	logger  zerolog.Logger
-	writers map[string]io.Writer
+	logger        zerolog.Logger
+	writers       map[string]io.Writer
+	currentPrefix string // Track current prefix for extension
 }
 
 func ConsoleLogger() IConsoleLogger {
@@ -221,11 +222,73 @@ func (d *consolelogger) GetLevel() Level {
 }
 
 func (d *consolelogger) WithPrefix(value string) IConsoleLogger {
+	// Create a new logger instance to replace existing prefix
+	var (
+		writers []io.Writer
+	)
 
-	d.logger = d.logger.With().Str("prefix", value).Logger()
+	// Ensure writers map exists
+	if len(d.writers) == 0 {
+		d.writers = make(map[string]io.Writer)
+	}
 
-	return d
+	// Add console writer if not present
+	if _, ok := d.writers[WRITER_CONSOLE]; !ok {
+		d.writers[WRITER_CONSOLE] = consolewriter.New()
+	}
 
+	// Build multi-writer from all writers
+	for _, v := range d.writers {
+		writers = append(writers, v)
+	}
+
+	mw := io.MultiWriter(writers...)
+	currentLevel := d.GetLevel()
+
+	// Create new logger with only the new prefix (replaces existing prefix)
+	return &consolelogger{
+		logger:        zerolog.New(mw).With().Timestamp().Str("prefix", value).Logger().Level(currentLevel),
+		writers:       d.writers,
+		currentPrefix: value, // Track the new prefix
+	}
+}
+
+func (d *consolelogger) WithPrefixExtend(value string) IConsoleLogger {
+	// Use the tracked current prefix to extend it
+	var (
+		writers []io.Writer
+	)
+
+	// Ensure writers map exists
+	if len(d.writers) == 0 {
+		d.writers = make(map[string]io.Writer)
+	}
+
+	// Add console writer if not present
+	if _, ok := d.writers[WRITER_CONSOLE]; !ok {
+		d.writers[WRITER_CONSOLE] = consolewriter.New()
+	}
+
+	// Build multi-writer from all writers
+	for _, v := range d.writers {
+		writers = append(writers, v)
+	}
+
+	mw := io.MultiWriter(writers...)
+	currentLevel := d.GetLevel()
+
+	// Build extended prefix using tracked current prefix
+	extendedPrefix := value
+	if d.currentPrefix != "" {
+		extendedPrefix = d.currentPrefix + "." + value
+	}
+
+	// Create new logger with extended prefix
+	return &consolelogger{
+		logger:        zerolog.New(mw).With().Timestamp().Str("prefix", extendedPrefix).Logger().Level(currentLevel),
+		writers:       d.writers,
+		currentPrefix: extendedPrefix, // Track the extended prefix
+	}
 }
 
 func (d *consolelogger) WithLevel(lvl Level) IConsoleLogger {
