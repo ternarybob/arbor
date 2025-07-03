@@ -71,7 +71,7 @@ func (w *ConsoleWriter) writeline(event []byte) error {
 		return err
 	}
 
-	_, err := fmt.Printf("%s\n", w.format(&logentry, true))
+	_, err := fmt.Fprintf(w.Out, "%s\n", w.format(&logentry, true))
 	if err != nil {
 		return err
 	}
