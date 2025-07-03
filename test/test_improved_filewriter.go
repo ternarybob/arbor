@@ -26,7 +26,7 @@ func main() {
 
 	// Test 1: Write some JSON log entries
 	fmt.Println("\n=== Test 1: JSON to Pipe-Delimited Conversion ===")
-	
+
 	logEntries := []map[string]interface{}{
 		{
 			"level":   "info",
@@ -41,12 +41,12 @@ func main() {
 			"message": "Initializing database manager...",
 		},
 		{
-			"level":   "info",
-			"time":    time.Now().Format(time.RFC3339),
-			"prefix":  "RavenDBService",
-			"message": "Successfully connected to database",
+			"level":      "info",
+			"time":       time.Now().Format(time.RFC3339),
+			"prefix":     "RavenDBService",
+			"message":    "Successfully connected to database",
 			"connection": "PrimaryRavenDB",
-			"url": "http://localhost:8080",
+			"url":        "http://localhost:8080",
 		},
 		{
 			"level":   "debug",
@@ -63,7 +63,7 @@ func main() {
 
 	// Test 2: Write duplicate entries to test deduplication
 	fmt.Println("\n=== Test 2: Duplicate Detection ===")
-	
+
 	duplicateEntry := map[string]interface{}{
 		"level":   "debug",
 		"time":    time.Now().Format(time.RFC3339),
@@ -80,7 +80,7 @@ func main() {
 
 	// Test 3: Write malformed JSON
 	fmt.Println("\n=== Test 3: Malformed JSON Handling ===")
-	
+
 	malformedEntries := []string{
 		`{"level":"info","prefix":"test","message":"incomplete`,
 		`not json at all`,
@@ -104,7 +104,7 @@ func main() {
 	}
 
 	fmt.Printf("File content:\n%s\n", string(content))
-	
+
 	// Count lines to show deduplication worked
 	lines := 0
 	for _, b := range content {

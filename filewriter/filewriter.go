@@ -32,9 +32,9 @@ type FileWriter struct {
 	wg           sync.WaitGroup
 	err          error
 	Log          []string
-	logFormat    string // "standard" or "json"
-	pattern      string // file naming pattern
-	filePath     string // current file path
+	logFormat    string               // "standard" or "json"
+	pattern      string               // file naming pattern
+	filePath     string               // current file path
 	recentHashes map[string]time.Time // For deduplication
 	hashMutex    sync.RWMutex
 }
@@ -316,14 +316,14 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 
 	// Extract fields with defaults
 	logEntry := LogEvent{}
-	
+
 	// Level
 	if level, ok := genericEntry["level"].(string); ok {
 		logEntry.Level = level
 	} else {
 		logEntry.Level = "info" // default level
 	}
-	
+
 	// Timestamp
 	if timeStr, ok := genericEntry["time"].(string); ok {
 		if parsedTime, err := time.Parse(time.RFC3339, timeStr); err == nil {
@@ -334,22 +334,22 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	} else {
 		logEntry.Timestamp = time.Now()
 	}
-	
+
 	// Prefix
 	if prefix, ok := genericEntry["prefix"].(string); ok {
 		logEntry.Prefix = prefix
 	}
-	
+
 	// Message
 	if message, ok := genericEntry["message"].(string); ok {
 		logEntry.Message = message
 	}
-	
+
 	// Error
 	if errorMsg, ok := genericEntry["error"].(string); ok {
 		logEntry.Error = errorMsg
 	}
-	
+
 	// CorrelationID
 	if correlationID, ok := genericEntry["correlationid"].(string); ok {
 		logEntry.CorrelationID = correlationID
@@ -427,7 +427,7 @@ func (w *FileWriter) formatLine(l *LogEvent, colour bool) string {
 	if l.Error != "" {
 		output += "|error:" + l.Error
 	}
-	
+
 	if l.CorrelationID != "" {
 		output += "|correlationid:" + l.CorrelationID
 	}
@@ -452,13 +452,13 @@ func (w *FileWriter) isDuplicate(data []byte) bool {
 
 	// Create content hash (exclude timestamp to detect true content duplicates)
 	content := string(data)
-	
+
 	// Remove timestamp from hash calculation to detect content duplicates
 	// Find the second pipe (after level|timestamp|...)
 	pipes := strings.Split(content, "|")
 	if len(pipes) >= 3 {
 		// Reconstruct without timestamp for hashing
-		hashContent := pipes[0] // level
+		hashContent := pipes[0]           // level
 		for i := 2; i < len(pipes); i++ { // skip timestamp
 			hashContent += "|" + pipes[i]
 		}
