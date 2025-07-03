@@ -95,36 +95,36 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Get commit messages for version detection
-      id: commit_check
+    - name: Check for version bump indicators
+      id: version_check
       run: |
-        # Check recent commits for version bump indicators
-        COMMITS=$(git log --oneline -10 --pretty=format:"%s")
-        echo "commits=$COMMITS" >> $GITHUB_ENV
+        # Get the most recent commit message
+        LATEST_COMMIT=$(git log -1 --pretty=format:"%s")
+        echo "Latest commit: $LATEST_COMMIT"
         
-        # Determine bump type based on commit messages
-        if echo "$COMMITS" | grep -i "#major\|BREAKING CHANGE" > /dev/null; then
-          echo "bump_type=major" >> $GITHUB_ENV
-          echo "Version bump: MAJOR (breaking changes detected)"
-        elif echo "$COMMITS" | grep -i "#minor\|feat" > /dev/null; then
-          echo "bump_type=minor" >> $GITHUB_ENV
-          echo "Version bump: MINOR (new features detected)"
-        elif echo "$COMMITS" | grep -i "#none\|#skip" > /dev/null; then
-          echo "bump_type=none" >> $GITHUB_ENV
+        # Check for skip indicators first
+        if echo "$LATEST_COMMIT" | grep -E "#(none|skip)" > /dev/null; then
+          echo "SKIP_RELEASE=true" >> $GITHUB_ENV
           echo "Version bump: SKIPPED (skip tag detected)"
+        elif echo "$LATEST_COMMIT" | grep -E "#major|BREAKING CHANGE" > /dev/null; then
+          echo "BUMP_TYPE=major" >> $GITHUB_ENV
+          echo "Version bump: MAJOR (breaking changes detected)"
+        elif echo "$LATEST_COMMIT" | grep -E "#minor|feat:" > /dev/null; then
+          echo "BUMP_TYPE=minor" >> $GITHUB_ENV
+          echo "Version bump: MINOR (new features detected)"
         else
-          echo "bump_type=patch" >> $GITHUB_ENV
+          echo "BUMP_TYPE=patch" >> $GITHUB_ENV
           echo "Version bump: PATCH (default)"
         fi
         
     - name: Bump version and create tag
       id: tag_version
-      if: env.bump_type != 'none'
+      if: env.SKIP_RELEASE != 'true'
       uses: anothrNick/github-tag-action@1.70.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         WITH_V: true
-        DEFAULT_BUMP: ${{ env.bump_type }}
+        DEFAULT_BUMP: ${{ env.BUMP_TYPE || 'patch' }}
         RELEASE_BRANCHES: main
         TAG_CONTEXT: branch
         DRY_RUN: false
