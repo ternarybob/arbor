@@ -282,17 +282,15 @@ func (w *FileWriter) writeLoopWithFormat() {
 
 // convertJSONToStandardFormat converts JSON log data to standard pipe-separated format
 func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
-	// Trim whitespace and validate JSON
+	// Trim whitespace and validate input
 	trimmedData := bytes.TrimSpace(data)
 	if len(trimmedData) == 0 {
 		return []byte{}, nil // Return empty for empty input
 	}
 
-	// Clean up potential JSON corruption (multiple JSON objects on one line)
-	trimmedData = w.cleanJSONData(trimmedData)
+	dataStr := string(trimmedData)
 
 	// Check if data is already in pipe format (avoid double processing)
-	dataStr := string(trimmedData)
 	if strings.Contains(dataStr, "|") && !strings.Contains(dataStr, "{") {
 		// Already pipe-delimited, just ensure it ends with newline
 		if !strings.HasSuffix(dataStr, "\n") {
@@ -301,27 +299,39 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 		return []byte(dataStr), nil
 	}
 
-	// Check if data is valid JSON
-	if !json.Valid(trimmedData) {
-		// Try to handle non-JSON data gracefully
+	// Handle non-JSON data first
+	if !strings.Contains(dataStr, "{") || !strings.Contains(dataStr, "}") {
+		return w.handleNonJSONData(trimmedData), nil
+	}
+
+	// Extract the first complete JSON object if multiple exist
+	jsonData := w.extractFirstCompleteJSON(trimmedData)
+	if len(jsonData) == 0 {
+		return w.handleNonJSONData(trimmedData), nil
+	}
+
+	// Check if the extracted JSON is valid
+	if !json.Valid(jsonData) {
 		return w.handleNonJSONData(trimmedData), nil
 	}
 
 	// Parse as a generic map to handle dynamic fields
 	var genericEntry map[string]interface{}
-	if err := json.Unmarshal(trimmedData, &genericEntry); err != nil {
-		// Return the original data as fallback
+	if err := json.Unmarshal(jsonData, &genericEntry); err != nil {
 		return w.handleNonJSONData(trimmedData), nil
 	}
 
 	// Extract fields with defaults
 	logEntry := LogEvent{}
 
-	// Level
+	// Level - convert to uppercase 3-letter format
 	if level, ok := genericEntry["level"].(string); ok {
-		logEntry.Level = level
+		logEntry.Level = strings.ToUpper(level)
+		if len(logEntry.Level) > 3 {
+			logEntry.Level = logEntry.Level[:3]
+		}
 	} else {
-		logEntry.Level = "info" // default level
+		logEntry.Level = "INF" // default level
 	}
 
 	// Timestamp
@@ -366,6 +376,35 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 	// Format as standard log line
 	formatted := w.formatLine(&logEntry, false) // false = no color codes for file
 	return []byte(formatted + "\n"), nil
+}
+
+// extractFirstCompleteJSON extracts the first complete JSON object from data
+func (w *FileWriter) extractFirstCompleteJSON(data []byte) []byte {
+	dataStr := string(data)
+	
+	// Find the first opening brace
+	start := strings.Index(dataStr, "{")
+	if start == -1 {
+		return []byte{}
+	}
+	
+	// Find the matching closing brace
+	braceCount := 0
+	for i := start; i < len(dataStr); i++ {
+		char := dataStr[i]
+		if char == '{' {
+			braceCount++
+		} else if char == '}' {
+			braceCount--
+			if braceCount == 0 {
+				// Found the end of the first complete JSON object
+				return []byte(dataStr[start:i+1])
+			}
+		}
+	}
+	
+	// If we didn't find a complete JSON object, return empty
+	return []byte{}
 }
 
 // cleanJSONData attempts to fix common JSON corruption issues
