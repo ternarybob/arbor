@@ -9,9 +9,9 @@ require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/rs/zerolog v1.34.0
-	github.com/ternarybob/funktion v1.0.0
-	github.com/ternarybob/satus v1.0.0
-	go.etcd.io/bbolt v1.4.1
+	github.com/ternarybob/funktion v1.0.1
+	github.com/ternarybob/satus v1.0.4
+	go.etcd.io/bbolt v1.4.2
 )
 
 require (

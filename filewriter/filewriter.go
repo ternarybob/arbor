@@ -332,7 +332,7 @@ func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
 // cleanJSONData attempts to fix common JSON corruption issues
 func (w *FileWriter) cleanJSONData(data []byte) []byte {
 	dataStr := string(data)
-	
+
 	// Handle case where multiple JSON objects are concatenated
 	if strings.Count(dataStr, "{") > 1 {
 		// Find the first complete JSON object
@@ -349,12 +349,12 @@ func (w *FileWriter) cleanJSONData(data []byte) []byte {
 			}
 		}
 	}
-	
+
 	// Remove trailing commas and incomplete JSON fragments
 	dataStr = strings.TrimSuffix(dataStr, ",")
 	dataStr = strings.TrimSuffix(dataStr, ",\"")
 	dataStr = strings.TrimSuffix(dataStr, ",\n")
-	
+
 	return []byte(dataStr)
 }
 

@@ -265,10 +265,10 @@ func TestFileWriterJSONCorruption(t *testing.T) {
 	// Test cases with corrupted JSON similar to what we saw in the log file
 	corruptedEntries := []string{
 		`{"level":"info","message":"test"},{"level":"debug","message":"another"}`, // Multiple JSON objects
-		`{"level":"info","message":"test"},"trailing":"data"`, // Trailing data
-		`{"level":"info","prefix":"test","prefix":"another","message":"msg"}`, // Duplicate keys
-		`{"level":"info","message":"test with unicode ╚══════"}`, // Unicode characters
-		`{"level":"debug","message":"incomplete`, // Incomplete JSON
+		`{"level":"info","message":"test"},"trailing":"data"`,                     // Trailing data
+		`{"level":"info","prefix":"test","prefix":"another","message":"msg"}`,     // Duplicate keys
+		`{"level":"info","message":"test with unicode ╚══════"}`,                  // Unicode characters
+		`{"level":"debug","message":"incomplete`,                                  // Incomplete JSON
 	}
 
 	for i, entry := range corruptedEntries {
