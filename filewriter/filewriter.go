@@ -262,8 +262,8 @@ func (w *FileWriter) writeLoopWithFormat() {
 			// Convert JSON to standard format
 			output, err = w.convertJSONToStandardFormat(task.data)
 			if err != nil {
-				fmt.Printf("Format conversion error: %v\n", err)
-				output = task.data // Fallback to original data
+				// Instead of falling back to raw JSON, create a basic formatted line
+				output = w.createFallbackFormattedLine(task.data)
 			}
 		}
 
@@ -402,6 +402,36 @@ func (w *FileWriter) handleNonJSONData(data []byte) []byte {
 	timestamp := time.Now().Format(time.Stamp)
 	// Create a simple log entry with the raw data as message
 	formatted := fmt.Sprintf("INF|%s|%s\n", timestamp, string(data))
+	return []byte(formatted)
+}
+
+// createFallbackFormattedLine creates a properly formatted log line when JSON conversion fails
+func (w *FileWriter) createFallbackFormattedLine(data []byte) []byte {
+	timestamp := time.Now().Format(time.Stamp)
+	dataStr := strings.TrimSpace(string(data))
+	
+	// If the data looks like it might contain JSON, try to extract a message
+	if strings.Contains(dataStr, "{") && strings.Contains(dataStr, "}") {
+		// Try to extract message from partial JSON
+		if strings.Contains(dataStr, `"message":"`) {
+			start := strings.Index(dataStr, `"message":"`) + 11
+			if start < len(dataStr) {
+				end := strings.Index(dataStr[start:], `"`)
+				if end > 0 {
+					message := dataStr[start : start+end]
+					formatted := fmt.Sprintf("INF|%s||%s\n", timestamp, message)
+					return []byte(formatted)
+				}
+			}
+		}
+		
+		// If we can't extract a message, indicate it's corrupted JSON
+		formatted := fmt.Sprintf("INF|%s||[Corrupted JSON data]\n", timestamp)
+		return []byte(formatted)
+	}
+	
+	// For non-JSON data, treat as a plain message
+	formatted := fmt.Sprintf("INF|%s||%s\n", timestamp, dataStr)
 	return []byte(formatted)
 }
 
