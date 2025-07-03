@@ -8,28 +8,30 @@ import (
 	"strings"
 	"time"
 
-	consolewriter "github.com/ternarybob/arbor/consolewriter"
 
 	"github.com/gookit/color"
-	"github.com/rs/zerolog"
+	"github.com/phuslu/log"
 )
 
 type GinWriter struct {
 	Out   io.Writer
-	Level zerolog.Level
+	Level log.Level
 }
 
 var (
-	loglevel    zerolog.Level  = zerolog.WarnLevel
-	prefix      string         = "GinWriter"
-	internallog zerolog.Logger = zerolog.New(&consolewriter.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(loglevel)
+	loglevel    log.Level = log.WarnLevel
+	prefix      string    = "GinWriter"
+	internallog log.Logger = log.Logger{
+		Level:  loglevel,
+		Writer: &log.ConsoleWriter{},
+	}
 )
 
 // New creates a new GinWriter instance
 func New() *GinWriter {
 	return &GinWriter{
 		Out:   os.Stdout,
-		Level: zerolog.InfoLevel,
+		Level: log.InfoLevel,
 	}
 }
 
@@ -69,7 +71,7 @@ func (w *GinWriter) Write(e []byte) (n int, err error) {
 func (w *GinWriter) writeline(event []byte) error {
 
 	var (
-		log      = internallog.With().Str("prefix", "writeline").Logger()
+	// Use direct logging instead of chained logger
 		logentry LogEvent
 	)
 
@@ -110,7 +112,7 @@ func (w *GinWriter) writeline(event []byte) error {
 
 	_, err := fmt.Printf("%s\n", w.format(&logentry, true))
 	if err != nil {
-		log.Warn().Err(err).Msg("")
+		internallog.Warn().Str("prefix", "writeline").Err(err).Msg("")
 		return err
 	}
 
@@ -169,7 +171,7 @@ const (
 type LevelMetadata struct {
 	Name      string
 	ShortName string
-	Level     zerolog.Level
+	Level     log.Level
 	ColorCode func(a ...interface{}) string
 }
 
@@ -177,37 +179,37 @@ var Levels = map[Level]*LevelMetadata{
 	DisableLevel: {
 		Name:      "disable",
 		ShortName: "DIS",
-		Level:     zerolog.Disabled,
+		Level:     log.PanicLevel + 1, // Effectively disabled
 		ColorCode: color.Debug.Render,
 	},
 	FatalLevel: {
 		Name:      "fatal",
 		ShortName: "FTL",
-		Level:     zerolog.FatalLevel,
+		Level:     log.FatalLevel,
 		ColorCode: color.Danger.Render,
 	},
 	ErrorLevel: {
 		Name:      "error",
 		ShortName: "ERR",
-		Level:     zerolog.ErrorLevel,
+		Level:     log.ErrorLevel,
 		ColorCode: color.Error.Render,
 	},
 	WarnLevel: {
 		Name:      "warn",
 		ShortName: "WRN",
-		Level:     zerolog.WarnLevel,
+		Level:     log.WarnLevel,
 		ColorCode: color.Warn.Render,
 	},
 	InfoLevel: {
 		Name:      "info",
 		ShortName: "INF",
-		Level:     zerolog.InfoLevel,
+		Level:     log.InfoLevel,
 		ColorCode: color.Info.Render,
 	},
 	DebugLevel: {
 		Name:      "debug",
 		ShortName: "DBG",
-		Level:     zerolog.DebugLevel,
+		Level:     log.DebugLevel,
 		ColorCode: color.Debug.Render,
 	},
 }
@@ -235,8 +237,7 @@ func toJson(input interface{}) string {
 	output, err := json.MarshalIndent(input, "", "\t")
 
 	if err != nil {
-		log := internallog.With().Str("prefix", "toJson").Logger()
-		log.Err(err).Msg("Object marshaling error")
+		internallog.Error().Str("prefix", "toJson").Msgf("Object marshaling error: %v", err)
 		return ""
 	}
 

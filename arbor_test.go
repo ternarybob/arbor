@@ -3,12 +3,11 @@ package arbor
 import (
 	"bytes"
 	"io"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/rs/zerolog"
+	"github.com/phuslu/log"
 )
 
 func TestIsEmpty(t *testing.T) {
@@ -74,8 +73,11 @@ func TestIConsoleLoggerInterface(t *testing.T) {
 // Mock implementation for testing
 type mockConsoleLogger struct{}
 
-func (m *mockConsoleLogger) GetLogger() *zerolog.Logger {
-	logger := zerolog.New(os.Stdout)
+func (m *mockConsoleLogger) GetLogger() *log.Logger {
+	logger := log.Logger{
+		Level:  log.InfoLevel,
+		Writer: &log.ConsoleWriter{},
+	}
 	return &logger
 }
 
@@ -209,8 +211,8 @@ func TestConstants(t *testing.T) {
 
 func TestLoggerInitialization(t *testing.T) {
 	// Test that internal logger is properly initialized
-	if internallog.GetLevel() != WarnLevel {
-		t.Errorf("Expected internal log level to be WarnLevel, got %v", internallog.GetLevel())
+	if internallog.Level != WarnLevel {
+		t.Errorf("Expected internal log level to be WarnLevel, got %v", internallog.Level)
 	}
 }
 

@@ -7,12 +7,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/rs/zerolog"
+	"github.com/phuslu/log"
 )
 
 var (
-	loglevel    zerolog.Level  = zerolog.WarnLevel
-	internallog zerolog.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger().Level(loglevel)
+	loglevel    log.Level = log.WarnLevel
+	internallog log.Logger = log.Logger{
+		Level:  loglevel,
+		Writer: &log.ConsoleWriter{},
+	}
 )
 
 type ConsoleWriter struct {
@@ -55,10 +58,10 @@ func (w *ConsoleWriter) Write(e []byte) (n int, err error) {
 
 func (w *ConsoleWriter) writeline(event []byte) error {
 
-	log := internallog.With().Str("prefix", "writeline").Logger()
+	// Use direct logging instead of chained logger
 
 	if len(event) <= 0 {
-		log.Warn().Msg("Entry is Empty")
+		internallog.Warn().Str("prefix", "writeline").Msg("Entry is Empty")
 		return fmt.Errorf("Entry is Empty")
 	}
 
@@ -66,7 +69,7 @@ func (w *ConsoleWriter) writeline(event []byte) error {
 
 	if err := json.Unmarshal(event, &logentry); err != nil {
 
-		log.Warn().Err(err).Msgf("error:%s entry:%s", err.Error(), string(event))
+		internallog.Warn().Str("prefix", "writeline").Err(err).Msgf("error:%s entry:%s", err.Error(), string(event))
 
 		return err
 	}
@@ -103,3 +106,4 @@ func (w *ConsoleWriter) format(l *LogEvent, colour bool) string {
 
 	return output
 }
+

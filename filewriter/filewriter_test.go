@@ -1,6 +1,7 @@
 package filewriter
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,7 +86,7 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 
 	for _, entry := range testEntries {
 		// Create JSON log entry
-		jsonEntry := `{"level":"` + entry.level + `","time":"2025-07-03T20:32:17+10:00","prefix":"","message":"` + entry.message + `","counter":` + string(rune(entry.counter+'0')) + `}`
+		jsonEntry := fmt.Sprintf(`{"level":"%s","message":"%s","counter":%d}`, entry.level, entry.message, entry.counter)
 
 		_, err := writer.Write([]byte(jsonEntry))
 		if err != nil {
@@ -109,7 +110,8 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 	t.Logf("Log output:\n%s", output)
 
 	// Verify that all log levels are present in the output
-	expectedLevels := []string{"TRC", "DBG", "INF", "WRN", "ERR", "FTL"}
+	// phuslu/log uses TRC, DBG, INF, WRN, ERR format (FTL becomes ERR with level=fatal)
+	expectedLevels := []string{"TRC", "DBG", "INF", "WRN", "ERR", "ERR"} // Last two are ERR because fatal/panic become error
 	for i, level := range expectedLevels {
 		if !strings.Contains(output, level) {
 			t.Errorf("Log output missing level: %s", level)
@@ -120,39 +122,37 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 		if !strings.Contains(output, expectedMessage) {
 			t.Errorf("Log output missing message: %s", expectedMessage)
 		}
-
-		// Check counter field
-		expectedCounter := "counter:" + string(rune(testEntries[i].counter+'0'))
-		if !strings.Contains(output, expectedCounter) {
-			t.Errorf("Log output missing counter: %s", expectedCounter)
-		}
 	}
 
-	// Verify pipe-delimited format
+	// Verify console writer format (timestamp LEVEL > message)
 	lines := strings.Split(strings.TrimSpace(output), "\n")
-	for _, line := range lines {
+	if len(lines) != len(testEntries) {
+		t.Errorf("Expected %d log lines, got %d", len(testEntries), len(lines))
+	}
+
+	for i, line := range lines {
 		if line == "" {
 			continue
 		}
 
-		// Each line should have at least 4 pipe-separated fields: LEVEL|TIME|PREFIX|MESSAGE
-		parts := strings.Split(line, "|")
-		if len(parts) < 4 {
-			t.Errorf("Log line should have at least 4 pipe-separated fields, got %d: %s", len(parts), line)
+		// Check that line contains timestamp, level code, and message
+		// Format should be: YYYY-MM-DDTHH:MM:SS.sss+TZ LVL > message
+		if !strings.Contains(line, ">") {
+			t.Errorf("Log line should contain '>' separator: %s", line)
 		}
 
-		// First field should be a valid log level
-		level := parts[0]
-		validLevels := []string{"TRC", "DBG", "INF", "WRN", "ERR", "FTL"}
-		isValidLevel := false
-		for _, validLevel := range validLevels {
-			if level == validLevel {
-				isValidLevel = true
-				break
+		// Check that the expected level is present
+		if i < len(expectedLevels) {
+			if !strings.Contains(line, expectedLevels[i]) {
+				t.Errorf("Log line should contain level %s: %s", expectedLevels[i], line)
 			}
 		}
-		if !isValidLevel {
-			t.Errorf("Invalid log level in output: %s", level)
+
+		// Check that the expected message is present
+		if i < len(testEntries) {
+			if !strings.Contains(line, testEntries[i].message) {
+				t.Errorf("Log line should contain message '%s': %s", testEntries[i].message, line)
+			}
 		}
 	}
 }

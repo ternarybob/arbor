@@ -1,8 +1,0 @@
-app:
-  name: "arbor-test"
-  environment: "test"
-
-redis:
-  enabled: false
-  host: "localhost"
-  port: 6379

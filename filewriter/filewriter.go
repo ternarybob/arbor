@@ -1,127 +1,57 @@
 package filewriter
 
 import (
-	"bytes"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/rs/zerolog"
+	"github.com/phuslu/log"
 )
-
-var (
-	loglevel    zerolog.Level  = zerolog.WarnLevel
-	internallog zerolog.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger().Level(loglevel)
-)
-
-type WriteTask struct {
-	data []byte
-}
 
 type FileWriter struct {
-	mutex        sync.Mutex
-	file         *os.File
-	queue        chan WriteTask
-	wg           sync.WaitGroup
-	err          error
-	Log          []string
-	logFormat    string               // "standard" or "json"
-	pattern      string               // file naming pattern
-	filePath     string               // current file path
-	recentHashes map[string]time.Time // For deduplication
-	hashMutex    sync.RWMutex
+	logger      *log.Logger
+	filePath    string
+	maxFiles    int
+	fileWriter  *os.File
+	minLevel    log.Level
 }
 
-type LogEvent struct {
-	Level         string    `json:"level"`
-	Timestamp     time.Time `json:"time"`
-	Prefix        string    `json:"prefix"`
-	CorrelationID string    `json:"correlationid"`
-	Message       string    `json:"message"`
-	Error         string    `json:"error"`
-	// Additional fields to handle zerolog output
-	Fields map[string]interface{} `json:"-"`
-}
-
-func New(file *os.File, bufferSize int) *FileWriter {
-
-	// fileWriter, _ := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
-
-	w := &FileWriter{
-		file:         file,
-		queue:        make(chan WriteTask, bufferSize),
-		wg:           sync.WaitGroup{},
-		logFormat:    "standard", // Default to standard format, not JSON
-		recentHashes: make(map[string]time.Time),
-	}
-	w.wg.Add(1)
-	go w.writeLoopWithFormat() // Use formatted output by default
-	return w
-
-}
-
-// NewWithPath creates a new FileWriter with the specified file path, creating directories if needed
-// It also implements file rotation based on the specified max number of log files.
 func NewWithPath(filePath string, bufferSize, maxFiles int) (*FileWriter, error) {
-	dir := filepath.Dir(filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
-	}
-
-	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
-	}
-
-	fw := New(file, bufferSize)
-	fw.rotateFiles(filePath, maxFiles)
-
-	return fw, nil
+	return NewWithPathAndLevel(filePath, bufferSize, maxFiles, log.TraceLevel)
 }
 
-// NewWithPatternAndFormat creates a new FileWriter with custom naming pattern and format
-// pattern: file naming pattern with placeholders like {YYMMDD}, {SERVICE}, etc.
-// format: "standard" for console-like format, "json" for JSON format
-func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFiles int) (*FileWriter, error) {
-	// If pattern is provided, expand it to create the actual filename
-	if pattern != "" {
-		dir := filepath.Dir(filePath)
-		baseName := expandFileNamePattern(pattern, "")
-		filePath = filepath.Join(dir, baseName)
-	}
-
+func NewWithPathAndLevel(filePath string, bufferSize, maxFiles int, minLevel log.Level) (*FileWriter, error) {
 	// Create directory if needed
 	dir := filepath.Dir(filePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+		return nil, err
 	}
 
-	// Open file
-	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+	// Create or open file
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
+		return nil, err
 	}
 
-	// Create FileWriter with enhanced fields
+	// Create Logger with console writer that writes to file
+	logger := &log.Logger{
+		Level:  minLevel,
+		Writer: &log.ConsoleWriter{
+			Writer: file,
+			ColorOutput: false,
+		},
+	}
+
 	fw := &FileWriter{
-		file:         file,
-		queue:        make(chan WriteTask, bufferSize),
-		wg:           sync.WaitGroup{},
-		logFormat:    format,
-		pattern:      pattern,
-		filePath:     filePath,
-		recentHashes: make(map[string]time.Time),
+		logger:     logger,
+		filePath:   filePath,
+		maxFiles:   maxFiles,
+		fileWriter: file,
+		minLevel:   minLevel,
 	}
-
-	fw.wg.Add(1)
-	go fw.writeLoopWithFormat()
 
 	// Handle file rotation
 	fw.rotateFiles(filePath, maxFiles)
@@ -129,8 +59,133 @@ func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFi
 	return fw, nil
 }
 
+// LogEntry represents a parsed log entry
+type LogEntry struct {
+	Level   string      `json:"level"`
+	Message string      `json:"message"`
+	Time    string      `json:"time,omitempty"`
+	Prefix  string      `json:"prefix,omitempty"`
+	Extra   interface{} `json:"-"`
+}
+
+// parseLogLevel converts string level to phuslu/log Level
+func parseLogLevel(levelStr string) log.Level {
+	switch strings.ToLower(levelStr) {
+	case "trace", "trc":
+		return log.TraceLevel
+	case "debug", "dbg":
+		return log.DebugLevel
+	case "info", "inf":
+		return log.InfoLevel
+	case "warn", "warning", "wrn":
+		return log.WarnLevel
+	case "error", "err":
+		return log.ErrorLevel
+	case "fatal", "ftl":
+		return log.FatalLevel
+	case "panic":
+		return log.PanicLevel
+	default:
+		return log.InfoLevel
+	}
+}
+
+// Write implements io.Writer interface
+func (fw *FileWriter) Write(p []byte) (n int, err error) {
+	input := strings.TrimSpace(string(p))
+	if input == "" {
+		return len(p), nil
+	}
+
+	// Try to parse as JSON
+	var entry LogEntry
+	if jsonErr := json.Unmarshal([]byte(input), &entry); jsonErr == nil {
+		// Successfully parsed JSON - log at the specified level
+		level := parseLogLevel(entry.Level)
+		
+		// Check if this level should be logged based on minimum level
+		if level < fw.minLevel {
+			return len(p), nil // Skip this log entry
+		}
+		
+		// Log at the appropriate level with message and fields
+		switch level {
+		case log.TraceLevel:
+			fw.logger.Trace().Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		case log.DebugLevel:
+			fw.logger.Debug().Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		case log.InfoLevel:
+			fw.logger.Info().Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		case log.WarnLevel:
+			fw.logger.Warn().Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		case log.ErrorLevel:
+			fw.logger.Error().Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		case log.FatalLevel:
+			// Use Error level instead of Fatal to avoid program exit
+			fw.logger.Error().Str("level", "fatal").Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		case log.PanicLevel:
+			// Use Error level instead of Panic to avoid program exit
+			fw.logger.Error().Str("level", "panic").Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		default:
+			fw.logger.Info().Str("prefix", entry.Prefix).Str("original_time", entry.Time).Msg(entry.Message)
+		}
+	} else {
+		// Not JSON, log as-is at info level
+		fw.logger.Info().Msg(input)
+	}
+	
+	return len(p), nil
+}
+
+// Close properly closes the file
+func (fw *FileWriter) Close() error {
+	if err := fw.fileWriter.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// New creates a new FileWriter using the old signature for compatibility
+func New(file *os.File, bufferSize int) *FileWriter {
+	filePath := file.Name()
+	file.Close()
+	
+	fw, err := NewWithPath(filePath, bufferSize, 10) // default 10 max files
+	if err != nil {
+		// fallback to a basic file writer on error
+		return &FileWriter{
+			filePath: filePath,
+			maxFiles: 10,
+		}
+	}
+	return fw
+}
+
+// NewWithPatternAndFormat creates a new FileWriter with custom naming pattern
+func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFiles int) (*FileWriter, error) {
+	return NewWithPatternFormatAndLevel(filePath, pattern, format, bufferSize, maxFiles, log.TraceLevel)
+}
+
+// NewWithPatternFormatAndLevel creates a new FileWriter with custom naming pattern and minimum log level
+func NewWithPatternFormatAndLevel(filePath, pattern, format string, bufferSize, maxFiles int, minLevel log.Level) (*FileWriter, error) {
+	// If pattern is provided, expand it to create the actual filename
+	if pattern != "" {
+		dir := filepath.Dir(filePath)
+		baseName := expandFileNamePattern(pattern, "")
+		filePath = filepath.Join(dir, baseName)
+	}
+
+	return NewWithPathAndLevel(filePath, bufferSize, maxFiles, minLevel)
+}
+
+// SetMinLevel sets the minimum log level for this writer
+func (fw *FileWriter) SetMinLevel(level log.Level) {
+	fw.minLevel = level
+	fw.logger.Level = level
+}
+
 // rotateFiles rotates the log files to ensure no more than maxFiles are kept
-func (w *FileWriter) rotateFiles(filePath string, maxFiles int) {
+func (fw *FileWriter) rotateFiles(filePath string, maxFiles int) {
 	// Get directory for rotation
 	dir := filepath.Dir(filePath)
 
@@ -139,7 +194,7 @@ func (w *FileWriter) rotateFiles(filePath string, maxFiles int) {
 
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		fmt.Println("Error fetching log files for rotation:", err)
+		fw.logger.Error().Msgf("Error fetching log files for rotation: %v", err)
 		return
 	}
 
@@ -149,84 +204,9 @@ func (w *FileWriter) rotateFiles(filePath string, maxFiles int) {
 	// Remove old log files if we exceed maxFiles
 	for len(files) >= maxFiles {
 		if err := os.Remove(files[0]); err != nil {
-			fmt.Printf("Error removing old log file %s: %v\n", files[0], err)
+			fw.logger.Error().Msgf("Error removing old log file %s: %v", files[0], err)
 		}
 		files = files[1:]
-	}
-}
-
-func (w *FileWriter) Write(e []byte) (n int, err error) {
-
-	n = len(e)
-	if n <= 0 {
-		return n, err
-	}
-
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	if w.err != nil {
-		return // Silently ignore write if already in error state
-	}
-
-	select {
-	case w.queue <- WriteTask{data: e}:
-	default:
-		fmt.Println("Write queue full, data dropped:", string(e))
-	}
-
-	return n, nil
-}
-
-func (w *FileWriter) writeline(event []byte) error {
-	log := internallog.With().Str("prefix", "writeline").Logger()
-
-	if len(event) <= 0 {
-		log.Warn().Msg("Entry is Empty")
-		return fmt.Errorf("Entry is Empty")
-	}
-
-	var logentry LogEvent
-
-	if err := json.Unmarshal(event, &logentry); err != nil {
-		log.Warn().Err(err).Msgf("error:%s entry:%s", err.Error(), string(event))
-		return err
-	}
-
-	// Write to file instead of stdout, without color codes
-	formatted := w.formatLine(&logentry, false) + "\n"
-	_, err := w.file.Write([]byte(formatted))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Close waits for pending writes and closes the writer
-func (w *FileWriter) Close() error {
-	close(w.queue)
-	w.wg.Wait()
-	if w.file != nil {
-		w.file.Close()
-		w.file = nil
-	}
-	return w.err
-}
-
-// writeLoop continuously processes tasks from the queue and writes to the file
-func (w *FileWriter) writeLoop() {
-	defer w.wg.Done()
-	for task := range w.queue {
-		_, err := w.file.Write(task.data)
-
-		if err != nil {
-			fmt.Println("Write error:", err)
-			w.mutex.Lock()
-			w.err = err // Update error state if desired for future writes
-			w.mutex.Unlock()
-			// No retry logic, continue processing remaining tasks
-		}
 	}
 }
 
@@ -246,311 +226,4 @@ func expandFileNamePattern(pattern, serviceName string) string {
 	expanded = strings.ReplaceAll(expanded, "{MMSS}", now.Format("0405"))
 
 	return expanded
-}
-
-// writeLoopWithFormat processes tasks with format-specific handling
-func (w *FileWriter) writeLoopWithFormat() {
-	defer w.wg.Done()
-	for task := range w.queue {
-		var output []byte
-		var err error
-
-		if w.logFormat == "json" {
-			// Write JSON format directly
-			output = task.data
-		} else {
-			// Convert JSON to standard format
-			output, err = w.convertJSONToStandardFormat(task.data)
-			if err != nil {
-				// Instead of falling back to raw JSON, create a basic formatted line
-				output = w.createFallbackFormattedLine(task.data)
-			}
-		}
-
-		// Check for duplicates before writing
-		if len(output) > 0 && !w.isDuplicate(output) {
-			_, writeErr := w.file.Write(output)
-			if writeErr != nil {
-				fmt.Println("Write error:", writeErr)
-				w.mutex.Lock()
-				w.err = writeErr
-				w.mutex.Unlock()
-			}
-		}
-	}
-}
-
-// convertJSONToStandardFormat converts JSON log data to standard pipe-separated format
-func (w *FileWriter) convertJSONToStandardFormat(data []byte) ([]byte, error) {
-	// Trim whitespace and validate input
-	trimmedData := bytes.TrimSpace(data)
-	if len(trimmedData) == 0 {
-		return []byte{}, nil // Return empty for empty input
-	}
-
-	dataStr := string(trimmedData)
-
-	// Check if data is already in pipe format (avoid double processing)
-	if strings.Contains(dataStr, "|") && !strings.Contains(dataStr, "{") {
-		// Already pipe-delimited, just ensure it ends with newline
-		if !strings.HasSuffix(dataStr, "\n") {
-			dataStr += "\n"
-		}
-		return []byte(dataStr), nil
-	}
-
-	// Handle non-JSON data first
-	if !strings.Contains(dataStr, "{") || !strings.Contains(dataStr, "}") {
-		return w.handleNonJSONData(trimmedData), nil
-	}
-
-	// Extract the first complete JSON object if multiple exist
-	jsonData := w.extractFirstCompleteJSON(trimmedData)
-	if len(jsonData) == 0 {
-		return w.handleNonJSONData(trimmedData), nil
-	}
-
-	// Check if the extracted JSON is valid
-	if !json.Valid(jsonData) {
-		return w.handleNonJSONData(trimmedData), nil
-	}
-
-	// Parse as a generic map to handle dynamic fields
-	var genericEntry map[string]interface{}
-	if err := json.Unmarshal(jsonData, &genericEntry); err != nil {
-		return w.handleNonJSONData(trimmedData), nil
-	}
-
-	// Extract fields with defaults
-	logEntry := LogEvent{}
-
-	// Level - use the level as-is for levelprint function to handle
-	if level, ok := genericEntry["level"].(string); ok {
-		logEntry.Level = level
-	} else {
-		logEntry.Level = "info" // default level
-	}
-
-	// Timestamp
-	if timeStr, ok := genericEntry["time"].(string); ok {
-		if parsedTime, err := time.Parse(time.RFC3339, timeStr); err == nil {
-			logEntry.Timestamp = parsedTime
-		} else {
-			logEntry.Timestamp = time.Now()
-		}
-	} else {
-		logEntry.Timestamp = time.Now()
-	}
-
-	// Prefix
-	if prefix, ok := genericEntry["prefix"].(string); ok {
-		logEntry.Prefix = prefix
-	}
-
-	// Message
-	if message, ok := genericEntry["message"].(string); ok {
-		logEntry.Message = message
-	}
-
-	// Error
-	if errorMsg, ok := genericEntry["error"].(string); ok {
-		logEntry.Error = errorMsg
-	}
-
-	// CorrelationID
-	if correlationID, ok := genericEntry["correlationid"].(string); ok {
-		logEntry.CorrelationID = correlationID
-	}
-
-	// Store additional fields for potential use
-	logEntry.Fields = make(map[string]interface{})
-	for key, value := range genericEntry {
-		if key != "level" && key != "time" && key != "prefix" && key != "message" && key != "error" && key != "correlationid" {
-			logEntry.Fields[key] = value
-		}
-	}
-
-	// Format as standard log line
-	formatted := w.formatLine(&logEntry, false) // false = no color codes for file
-	return []byte(formatted + "\n"), nil
-}
-
-// extractFirstCompleteJSON extracts the first complete JSON object from data
-func (w *FileWriter) extractFirstCompleteJSON(data []byte) []byte {
-	dataStr := string(data)
-
-	// Find the first opening brace
-	start := strings.Index(dataStr, "{")
-	if start == -1 {
-		return []byte{}
-	}
-
-	// Find the matching closing brace
-	braceCount := 0
-	for i := start; i < len(dataStr); i++ {
-		char := dataStr[i]
-		if char == '{' {
-			braceCount++
-		} else if char == '}' {
-			braceCount--
-			if braceCount == 0 {
-				// Found the end of the first complete JSON object
-				return []byte(dataStr[start : i+1])
-			}
-		}
-	}
-
-	// If we didn't find a complete JSON object, return empty
-	return []byte{}
-}
-
-// cleanJSONData attempts to fix common JSON corruption issues
-func (w *FileWriter) cleanJSONData(data []byte) []byte {
-	dataStr := string(data)
-
-	// Handle case where multiple JSON objects are concatenated
-	if strings.Count(dataStr, "{") > 1 {
-		// Find the first complete JSON object
-		braceCount := 0
-		for i, char := range dataStr {
-			if char == '{' {
-				braceCount++
-			} else if char == '}' {
-				braceCount--
-				if braceCount == 0 {
-					// Found the end of the first complete JSON object
-					return []byte(dataStr[:i+1])
-				}
-			}
-		}
-	}
-
-	// Remove trailing commas and incomplete JSON fragments
-	dataStr = strings.TrimSuffix(dataStr, ",")
-	dataStr = strings.TrimSuffix(dataStr, ",\"")
-	dataStr = strings.TrimSuffix(dataStr, ",\n")
-
-	return []byte(dataStr)
-}
-
-// handleNonJSONData creates a basic log entry for non-JSON data
-func (w *FileWriter) handleNonJSONData(data []byte) []byte {
-	timestamp := time.Now().Format(time.Stamp)
-	// Create a simple log entry with the raw data as message
-	formatted := fmt.Sprintf("INF|%s|%s\n", timestamp, string(data))
-	return []byte(formatted)
-}
-
-// createFallbackFormattedLine creates a properly formatted log line when JSON conversion fails
-func (w *FileWriter) createFallbackFormattedLine(data []byte) []byte {
-	timestamp := time.Now().Format(time.Stamp)
-	dataStr := strings.TrimSpace(string(data))
-
-	// If the data looks like it might contain JSON, try to extract a message
-	if strings.Contains(dataStr, "{") && strings.Contains(dataStr, "}") {
-		// Try to extract message from partial JSON
-		if strings.Contains(dataStr, `"message":"`) {
-			start := strings.Index(dataStr, `"message":"`) + 11
-			if start < len(dataStr) {
-				end := strings.Index(dataStr[start:], `"`)
-				if end > 0 {
-					message := dataStr[start : start+end]
-					formatted := fmt.Sprintf("INF|%s||%s\n", timestamp, message)
-					return []byte(formatted)
-				}
-			}
-		}
-
-		// If we can't extract a message, indicate it's corrupted JSON
-		formatted := fmt.Sprintf("INF|%s||[Corrupted JSON data]\n", timestamp)
-		return []byte(formatted)
-	}
-
-	// For non-JSON data, treat as a plain message
-	formatted := fmt.Sprintf("INF|%s||%s\n", timestamp, dataStr)
-	return []byte(formatted)
-}
-
-func (w *FileWriter) formatLine(l *LogEvent, colour bool) string {
-	timestamp := l.Timestamp.Format(time.Stamp)
-
-	// Start with LEVEL|TIMEDATE
-	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
-
-	// Add PREFIX (always include the pipe, even if empty)
-	output += "|"
-	if l.Prefix != "" {
-		output += l.Prefix
-	}
-
-	// Add MESSAGE (always include the pipe, even if empty)
-	output += "|"
-	if l.Message != "" {
-		output += l.Message
-	}
-
-	// Add additional fields if present
-	if l.Error != "" {
-		output += "|error:" + l.Error
-	}
-
-	if l.CorrelationID != "" {
-		output += "|correlationid:" + l.CorrelationID
-	}
-
-	// Add any other fields from the Fields map
-	if l.Fields != nil {
-		for key, value := range l.Fields {
-			if valueStr := fmt.Sprintf("%v", value); valueStr != "" {
-				output += fmt.Sprintf("|%s:%s", key, valueStr)
-			}
-		}
-	}
-
-	return output
-}
-
-// isDuplicate checks if the log entry is a duplicate based on content hash
-func (w *FileWriter) isDuplicate(data []byte) bool {
-	if w.recentHashes == nil {
-		w.recentHashes = make(map[string]time.Time)
-	}
-
-	// Create content hash (exclude timestamp to detect true content duplicates)
-	content := string(data)
-
-	// Remove timestamp from hash calculation to detect content duplicates
-	// Find the second pipe (after level|timestamp|...)
-	pipes := strings.Split(content, "|")
-	if len(pipes) >= 3 {
-		// Reconstruct without timestamp for hashing
-		hashContent := pipes[0]           // level
-		for i := 2; i < len(pipes); i++ { // skip timestamp
-			hashContent += "|" + pipes[i]
-		}
-		content = hashContent
-	}
-
-	hash := md5.Sum([]byte(content))
-	hashStr := hex.EncodeToString(hash[:])
-
-	w.hashMutex.Lock()
-	defer w.hashMutex.Unlock()
-
-	// Clean up old hashes (older than 5 minutes)
-	cutoff := time.Now().Add(-5 * time.Minute)
-	for h, t := range w.recentHashes {
-		if t.Before(cutoff) {
-			delete(w.recentHashes, h)
-		}
-	}
-
-	// Check if this hash exists recently
-	if _, exists := w.recentHashes[hashStr]; exists {
-		return true // It's a duplicate
-	}
-
-	// Add this hash to recent hashes
-	w.recentHashes[hashStr] = time.Now()
-	return false
 }

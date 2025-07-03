@@ -4,11 +4,11 @@ import (
 	"io"
 
 	"github.com/labstack/echo/v4"
-	"github.com/rs/zerolog"
+"github.com/phuslu/log"
 )
 
 type IConsoleLogger interface {
-	GetLogger() *zerolog.Logger
+GetLogger() *log.Logger
 
 	GetLevel() Level
 

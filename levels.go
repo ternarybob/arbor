@@ -1,33 +1,54 @@
 package arbor
 
-import "github.com/rs/zerolog"
+import (
+	"fmt"
+	"strings"
+	"github.com/phuslu/log"
+)
 
 // Level type for arbor logging levels
-type Level = zerolog.Level
+type Level = log.Level
 
-// Level constants that mirror zerolog levels
+// Level constants that mirror phuslu/log levels
 const (
 	// TraceLevel defines trace log level.
-	TraceLevel Level = zerolog.TraceLevel
+	TraceLevel Level = log.TraceLevel
 	// DebugLevel defines debug log level.
-	DebugLevel Level = zerolog.DebugLevel
+	DebugLevel Level = log.DebugLevel
 	// InfoLevel defines info log level.
-	InfoLevel Level = zerolog.InfoLevel
+	InfoLevel Level = log.InfoLevel
 	// WarnLevel defines warn log level.
-	WarnLevel Level = zerolog.WarnLevel
+	WarnLevel Level = log.WarnLevel
 	// ErrorLevel defines error log level.
-	ErrorLevel Level = zerolog.ErrorLevel
+	ErrorLevel Level = log.ErrorLevel
 	// FatalLevel defines fatal log level.
-	FatalLevel Level = zerolog.FatalLevel
+	FatalLevel Level = log.FatalLevel
 	// PanicLevel defines panic log level.
-	PanicLevel Level = zerolog.PanicLevel
-	// NoLevel defines an absent log level.
-	NoLevel Level = zerolog.NoLevel
+	PanicLevel Level = log.PanicLevel
 	// Disabled disables the logger.
-	Disabled Level = zerolog.Disabled
+	Disabled Level = log.PanicLevel + 1
 )
 
 // ParseLevel converts a level string to a Level value.
 func ParseLevel(levelStr string) (Level, error) {
-	return zerolog.ParseLevel(levelStr)
+	switch strings.ToLower(levelStr) {
+	case "trace":
+		return TraceLevel, nil
+	case "debug":
+		return DebugLevel, nil
+	case "info":
+		return InfoLevel, nil
+	case "warn", "warning":
+		return WarnLevel, nil
+	case "error":
+		return ErrorLevel, nil
+	case "fatal":
+		return FatalLevel, nil
+	case "panic":
+		return PanicLevel, nil
+	case "disabled", "off":
+		return Disabled, nil
+	default:
+		return InfoLevel, fmt.Errorf("unknown level: %s", levelStr)
+	}
 }

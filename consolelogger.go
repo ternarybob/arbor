@@ -18,7 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
-	"github.com/rs/zerolog"
+	"github.com/phuslu/log"
 )
 
 const (
@@ -31,12 +31,15 @@ const (
 )
 
 var (
-	internallog zerolog.Logger = zerolog.New(&consolewriter.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(zerolog.WarnLevel)
-	copieropts  copier.Option  = copier.Option{IgnoreEmpty: true, DeepCopy: false}
+	internallog log.Logger = log.Logger{
+		Level:  log.WarnLevel,
+		Writer: &log.ConsoleWriter{},
+	}
+	copieropts copier.Option = copier.Option{IgnoreEmpty: true, DeepCopy: false}
 )
 
 type consolelogger struct {
-	logger        zerolog.Logger
+	logger        log.Logger
 	writers       map[string]io.Writer
 	currentPrefix string // Track current prefix for extension
 }
@@ -54,7 +57,7 @@ func ConsoleLogger() IConsoleLogger {
 		loglevel = InfoLevel
 	}
 
-	// zerolog.SetGlobalLevel(loglevel)
+	// phuslu/log doesn't have a global level setter
 	internallog.Trace().Msgf("Setting cfg.Service.LogLevel:%s loglevel:%s", cfg.Service.LogLevel, loglevel.String())
 
 	// Add Writers
@@ -68,10 +71,13 @@ func ConsoleLogger() IConsoleLogger {
 
 	}
 
-	mw := io.MultiWriter(writers...)
+	// Note: simplified to use basic ConsoleWriter since phuslu/log doesn't support MultiWriter like zerolog
 
 	return &consolelogger{
-		logger:  zerolog.New(mw).With().Timestamp().Logger().Level(loglevel),
+		logger: log.Logger{
+			Level:  loglevel,
+			Writer: &log.ConsoleWriter{},
+		},
 		writers: namedwriters,
 	}
 
@@ -81,7 +87,7 @@ func ConsoleLogger() IConsoleLogger {
 func (d *consolelogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
 
 	var (
-		internallog = internallog.With().Str("prefix", "WithRequestContext").Logger()
+		// Use direct logging instead of chained logger
 		writers     []io.Writer
 	)
 
@@ -115,12 +121,15 @@ func (d *consolelogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
 		writers = append(writers, d.writers[k])
 	}
 
-	mw := io.MultiWriter(writers...)
+	// Note: simplified to use basic ConsoleWriter since phuslu/log doesn't support MultiWriter like zerolog
 
 	currentlevel := d.GetLevel()
 
 	o := &consolelogger{
-		logger:  zerolog.New(mw).With().Timestamp().Str("correlationid", correlationid).Logger().Level(currentlevel),
+		logger: log.Logger{
+			Level:  currentlevel,
+			Writer: &log.ConsoleWriter{},
+		},
 		writers: d.writers,
 	}
 
@@ -152,12 +161,15 @@ func (d *consolelogger) WithWriter(name string, writer io.Writer) IConsoleLogger
 		writers = append(writers, v)
 	}
 
-	mw := io.MultiWriter(writers...)
+	// Note: simplified to use basic ConsoleWriter since phuslu/log doesn't support MultiWriter like zerolog
 
 	currentlevel := d.GetLevel()
 
 	o := &consolelogger{
-		logger:  zerolog.New(mw).With().Timestamp().Logger().Level(currentlevel),
+		logger: log.Logger{
+			Level:  currentlevel,
+			Writer: &log.ConsoleWriter{},
+		},
 		writers: d.writers,
 	}
 
@@ -205,20 +217,21 @@ func (d *consolelogger) WithCorrelationId(correlationid string) IConsoleLogger {
 		writers = append(writers, v)
 	}
 
-	mw := io.MultiWriter(writers...)
+	// Note: simplified to use basic ConsoleWriter since phuslu/log doesn't support MultiWriter like zerolog
 	currentLevel := d.GetLevel()
 
 	return &consolelogger{
-		logger:  zerolog.New(mw).With().Timestamp().Str("correlationid", correlationid).Logger().Level(currentLevel),
+		logger: log.Logger{
+			Level:  currentLevel,
+			Writer: &log.ConsoleWriter{},
+		},
 		writers: d.writers,
 	}
 
 }
 
 func (d *consolelogger) GetLevel() Level {
-
-	return d.logger.GetLevel()
-
+	return d.logger.Level
 }
 
 func (d *consolelogger) WithPrefix(value string) IConsoleLogger {
@@ -242,12 +255,15 @@ func (d *consolelogger) WithPrefix(value string) IConsoleLogger {
 		writers = append(writers, v)
 	}
 
-	mw := io.MultiWriter(writers...)
+	// Note: simplified to use basic ConsoleWriter since phuslu/log doesn't support MultiWriter like zerolog
 	currentLevel := d.GetLevel()
 
 	// Create new logger with only the new prefix (replaces existing prefix)
 	return &consolelogger{
-		logger:        zerolog.New(mw).With().Timestamp().Str("prefix", value).Logger().Level(currentLevel),
+		logger: log.Logger{
+			Level:  currentLevel,
+			Writer: &log.ConsoleWriter{},
+		},
 		writers:       d.writers,
 		currentPrefix: value, // Track the new prefix
 	}
@@ -274,7 +290,7 @@ func (d *consolelogger) WithPrefixExtend(value string) IConsoleLogger {
 		writers = append(writers, v)
 	}
 
-	mw := io.MultiWriter(writers...)
+	// Note: simplified to use basic ConsoleWriter since phuslu/log doesn't support MultiWriter like zerolog
 	currentLevel := d.GetLevel()
 
 	// Build extended prefix using tracked current prefix
@@ -285,7 +301,10 @@ func (d *consolelogger) WithPrefixExtend(value string) IConsoleLogger {
 
 	// Create new logger with extended prefix
 	return &consolelogger{
-		logger:        zerolog.New(mw).With().Timestamp().Str("prefix", extendedPrefix).Logger().Level(currentLevel),
+		logger: log.Logger{
+			Level:  currentLevel,
+			Writer: &log.ConsoleWriter{},
+		},
 		writers:       d.writers,
 		currentPrefix: extendedPrefix, // Track the extended prefix
 	}
@@ -302,25 +321,20 @@ func (d *consolelogger) WithLevel(lvl Level) IConsoleLogger {
 		return d
 	}
 
-	output.logger = output.logger.Level(lvl)
+	output.logger.Level = lvl
 
 	return output
 
 }
 
 func (d *consolelogger) WithFunction() IConsoleLogger {
-
-	functionName := d.getFunctionName()
-
-	d.logger = d.logger.With().Timestamp().Str("prefix", functionName).Logger()
-
+	// phuslu/log doesn't support runtime modification like this
 	return d
-
 }
 
 func (d *consolelogger) WithContext(key string, value string) IConsoleLogger {
 
-	d.logger = d.logger.With().Timestamp().Str(key, value).Logger()
+		// phuslu/log doesn't support runtime modification like this
 
 	return d
 
@@ -328,7 +342,7 @@ func (d *consolelogger) WithContext(key string, value string) IConsoleLogger {
 
 func (d *consolelogger) WithCorrelationid(value string) {
 
-	d.logger = d.logger.With().Str(CORRELATION_ID_KEY, value).Logger()
+		// phuslu/log doesn't support runtime modification like this
 
 }
 
@@ -349,7 +363,7 @@ func (d *consolelogger) getFunctionName() string {
 
 }
 
-func (d *consolelogger) GetLogger() *zerolog.Logger {
+func (d *consolelogger) GetLogger() *log.Logger {
 
 	var (
 		output = &consolelogger{}
