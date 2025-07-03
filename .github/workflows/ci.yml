@@ -100,31 +100,31 @@ jobs:
       run: |
         # Check recent commits for version bump indicators
         COMMITS=$(git log --oneline -10 --pretty=format:"%s")
-        echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+        echo "commits=$COMMITS" >> $GITHUB_ENV
         
         # Determine bump type based on commit messages
         if echo "$COMMITS" | grep -i "#major\|BREAKING CHANGE" > /dev/null; then
-          echo "bump_type=major" >> $GITHUB_OUTPUT
+          echo "bump_type=major" >> $GITHUB_ENV
           echo "Version bump: MAJOR (breaking changes detected)"
         elif echo "$COMMITS" | grep -i "#minor\|feat" > /dev/null; then
-          echo "bump_type=minor" >> $GITHUB_OUTPUT  
+          echo "bump_type=minor" >> $GITHUB_ENV
           echo "Version bump: MINOR (new features detected)"
         elif echo "$COMMITS" | grep -i "#none\|#skip" > /dev/null; then
-          echo "bump_type=none" >> $GITHUB_OUTPUT
+          echo "bump_type=none" >> $GITHUB_ENV
           echo "Version bump: SKIPPED (skip tag detected)"
         else
-          echo "bump_type=patch" >> $GITHUB_OUTPUT
+          echo "bump_type=patch" >> $GITHUB_ENV
           echo "Version bump: PATCH (default)"
         fi
         
     - name: Bump version and create tag
       id: tag_version
-      if: steps.commit_check.outputs.bump_type != 'none'
+      if: env.bump_type != 'none'
       uses: anothrNick/github-tag-action@1.70.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         WITH_V: true
-        DEFAULT_BUMP: ${{ steps.commit_check.outputs.bump_type }}
+        DEFAULT_BUMP: ${{ env.bump_type }}
         RELEASE_BRANCHES: main
         TAG_CONTEXT: branch
         DRY_RUN: false
