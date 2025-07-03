@@ -23,26 +23,26 @@ type WriteTask struct {
 }
 
 type FileWriter struct {
-	mutex    sync.Mutex
-	file     *os.File
-	queue    chan WriteTask
-	wg       sync.WaitGroup
-	err      error
-	Log      []string
-	logFormat   string // "standard" or "json"
-	pattern  string // file naming pattern
-	filePath string // current file path
+	mutex     sync.Mutex
+	file      *os.File
+	queue     chan WriteTask
+	wg        sync.WaitGroup
+	err       error
+	Log       []string
+	logFormat string // "standard" or "json"
+	pattern   string // file naming pattern
+	filePath  string // current file path
 }
 
 type LogEvent struct {
-	Level         string                 `json:"level"`
-	Timestamp     time.Time              `json:"time"`
-	Prefix        string                 `json:"prefix"`
-	CorrelationID string                 `json:"correlationid"`
-	Message       string                 `json:"message"`
-	Error         string                 `json:"error"`
+	Level         string    `json:"level"`
+	Timestamp     time.Time `json:"time"`
+	Prefix        string    `json:"prefix"`
+	CorrelationID string    `json:"correlationid"`
+	Message       string    `json:"message"`
+	Error         string    `json:"error"`
 	// Additional fields to handle zerolog output
-	Fields        map[string]interface{} `json:"-"`
+	Fields map[string]interface{} `json:"-"`
 }
 
 func New(file *os.File, bufferSize int) *FileWriter {
@@ -104,12 +104,12 @@ func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFi
 
 	// Create FileWriter with enhanced fields
 	fw := &FileWriter{
-		file:     file,
-		queue:    make(chan WriteTask, bufferSize),
-		wg:       sync.WaitGroup{},
+		file:      file,
+		queue:     make(chan WriteTask, bufferSize),
+		wg:        sync.WaitGroup{},
 		logFormat: format,
-		pattern:  pattern,
-		filePath: filePath,
+		pattern:   pattern,
+		filePath:  filePath,
 	}
 
 	fw.wg.Add(1)
@@ -218,8 +218,6 @@ func (w *FileWriter) writeLoop() {
 		}
 	}
 }
-
-
 
 // expandFileNamePattern expands placeholders in filename patterns
 func expandFileNamePattern(pattern, serviceName string) string {

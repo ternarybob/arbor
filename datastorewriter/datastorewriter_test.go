@@ -12,7 +12,7 @@ func TestDatastoreWriterCreation(t *testing.T) {
 			t.Logf("DatastoreWriter creation panicked (expected if no config): %v", r)
 		}
 	}()
-	
+
 	writer := New()
 	if writer != nil {
 		t.Logf("DatastoreWriter created successfully")
@@ -27,15 +27,15 @@ func TestDatastoreWriterInterface(t *testing.T) {
 			t.Logf("DatastoreWriter test panicked (expected without proper setup): %v", r)
 		}
 	}()
-	
+
 	writer := New()
 	if writer == nil {
 		t.Skip("Skipping test - DatastoreWriter requires proper configuration")
 	}
-	
+
 	testData := []byte("test datastore message")
 	_, err := writer.Write(testData)
-	
+
 	// We don't fail on error here as it might be expected without proper datastore setup
 	if err != nil {
 		t.Logf("Write returned error (may be expected without datastore): %v", err)
