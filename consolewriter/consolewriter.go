@@ -88,12 +88,8 @@ func (w *ConsoleWriter) format(l *LogEvent, colour bool) string {
 
 	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
 
-	if l.CorrelationID != "" {
-		output += fmt.Sprintf("|%s", l.CorrelationID)
-	}
-
 	if l.Prefix != "" {
-		output += fmt.Sprintf("|%-55s", l.Prefix)
+		output += fmt.Sprintf("|%s", l.Prefix)
 	}
 
 	if l.Message != "" {
