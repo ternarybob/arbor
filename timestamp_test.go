@@ -1,8 +1,8 @@
 package arbor
 
 import (
-	"testing"
 	"github.com/phuslu/log"
+	"testing"
 )
 
 func TestTimestampFormat(t *testing.T) {
@@ -15,7 +15,7 @@ func TestTimestampFormat(t *testing.T) {
 			EndWithMessage: true,
 		},
 	}
-	
+
 	t.Log("Testing timestamp format - should show HH:MM:SS.sss format")
 	testLogger.Info().Msg("This message should have short timestamp format: HH:MM:SS.sss")
 	testLogger.Warn().Msg("This warning should also have short timestamp format")
