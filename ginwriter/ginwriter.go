@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gookit/color"
 	"github.com/phuslu/log"
 )
 
@@ -35,19 +34,14 @@ func New() *GinWriter {
 }
 
 type LogEvent struct {
-	Level         *LevelMetadata `json:"level"`
-	Time          time.Time      `json:"-"`
-	Timestamp     int64          `json:"timestamp,omitempty"`
-	Prefix        string         `json:"prefix"`
-	CorrelationID string         `json:"correlationid"`
-	Message       string         `json:"message"`
-	Error         string         `json:"error"`
+	Level         string    `json:"level"`
+	Timestamp     time.Time `json:"time"`
+	Prefix        string    `json:"prefix"`
+	CorrelationID string    `json:"correlationid"`
+	Message       string    `json:"message"`
+	Error         string    `json:"error"`
 }
 
-type Frame struct {
-	Function string `json:"function"`
-	Source   string `json:"source"`
-}
 
 func (w *GinWriter) Write(e []byte) (n int, err error) {
 
@@ -79,7 +73,7 @@ func (w *GinWriter) writeline(event []byte) error {
 	}
 
 	logentry.Prefix = "GIN"
-	logentry.Time = time.Now()
+	logentry.Timestamp = time.Now()
 	logentry.Message = strings.TrimSuffix(string(event), "\n")
 
 	logstring := string(event)
@@ -87,148 +81,61 @@ func (w *GinWriter) writeline(event []byte) error {
 	switch {
 	case stringContains(logstring, "GIN-fatal"):
 		logentry.Message = strings.ReplaceAll(logentry.Message, "[GIN-fatal] ", "")
-		logentry.Level = Levels[1]
+		logentry.Level = "fatal"
 	case stringContains(logstring, "GIN-error"):
 		logentry.Message = strings.ReplaceAll(logentry.Message, "[GIN-error] ", "")
-		logentry.Level = Levels[2]
+		logentry.Level = "error"
 	case stringContains(logstring, "GIN-warning"):
 		logentry.Message = strings.ReplaceAll(logentry.Message, "[GIN-warning] ", "")
-		logentry.Level = Levels[3]
+		logentry.Level = "warn"
 	case stringContains(logstring, "GIN-information"):
 		logentry.Message = strings.ReplaceAll(logentry.Message, "[GIN-information] ", "")
-		logentry.Level = Levels[4]
+		logentry.Level = "info"
 	case stringContains(logstring, "GIN-debug"):
 		logentry.Message = strings.ReplaceAll(logentry.Message, "[GIN-debug] ", "")
-		logentry.Level = Levels[5]
+		logentry.Level = "debug"
 	default:
-		// Disabled or Trace
+	// Default to info level for standard Gin logs
+		logentry.Level = "info"
+	}
+
+	// Check if we should log this level
+	if !shouldLogLevel(logentry.Level, w.Level) {
 		return nil
 	}
 
-	if w.Level > logentry.Level.Level {
-		return nil
-	}
-
-	_, err := fmt.Printf("%s\n", w.format(&logentry, true))
+	// Convert to JSON and write to output
+	jsonOutput, err := json.Marshal(logentry)
 	if err != nil {
-		internallog.Warn().Str("prefix", "writeline").Err(err).Msg("")
+		internallog.Warn().Str("prefix", "writeline").Err(err).Msg("Failed to marshal log entry")
+		return err
+	}
+
+	_, err = fmt.Fprintf(w.Out, "%s\n", string(jsonOutput))
+	if err != nil {
+		internallog.Warn().Str("prefix", "writeline").Err(err).Msg("Failed to write log entry")
 		return err
 	}
 
 	return nil
 }
 
-func (w *GinWriter) format(l *LogEvent, colour bool) string {
-
-	timestamp := l.Time.Format("15:04:05.000")
-
-	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
-
-	if l.Prefix != "" {
-		output += fmt.Sprintf("|%s", l.Prefix)
+// Level filtering based on string comparison with phuslu log levels
+func shouldLogLevel(level string, writerLevel log.Level) bool {
+	switch strings.ToLower(level) {
+	case "fatal":
+		return writerLevel <= log.FatalLevel
+	case "error":
+		return writerLevel <= log.ErrorLevel
+	case "warn":
+		return writerLevel <= log.WarnLevel
+	case "info":
+		return writerLevel <= log.InfoLevel
+	case "debug":
+		return writerLevel <= log.DebugLevel
+	default:
+		return true
 	}
-
-	if l.Message != "" {
-
-		output += fmt.Sprintf("|%s", l.Message)
-	}
-
-	if l.Error != "" {
-		output += fmt.Sprintf("|%s", l.Error)
-	}
-
-	return output
-}
-
-func levelprint(level *LevelMetadata, colour bool) string {
-
-	if level == nil {
-		return ""
-	}
-
-	if colour {
-		return level.ColorCode(level.ShortName)
-	} else {
-		return level.ShortName
-	}
-
-}
-
-type Level int8
-
-const (
-	DisableLevel Level = iota
-	FatalLevel
-	ErrorLevel
-	WarnLevel
-	InfoLevel
-	DebugLevel
-)
-
-// LevelMetadata describes the information
-// behind a log Level, each level has its own unique metadata.
-type LevelMetadata struct {
-	Name      string
-	ShortName string
-	Level     log.Level
-	ColorCode func(a ...interface{}) string
-}
-
-var Levels = map[Level]*LevelMetadata{
-	DisableLevel: {
-		Name:      "disable",
-		ShortName: "DIS",
-		Level:     log.PanicLevel + 1, // Effectively disabled
-		ColorCode: color.Debug.Render,
-	},
-	FatalLevel: {
-		Name:      "fatal",
-		ShortName: "FTL",
-		Level:     log.FatalLevel,
-		ColorCode: color.Danger.Render,
-	},
-	ErrorLevel: {
-		Name:      "error",
-		ShortName: "ERR",
-		Level:     log.ErrorLevel,
-		ColorCode: color.Error.Render,
-	},
-	WarnLevel: {
-		Name:      "warn",
-		ShortName: "WRN",
-		Level:     log.WarnLevel,
-		ColorCode: color.Warn.Render,
-	},
-	InfoLevel: {
-		Name:      "info",
-		ShortName: "INF",
-		Level:     log.InfoLevel,
-		ColorCode: color.Info.Render,
-	},
-	DebugLevel: {
-		Name:      "debug",
-		ShortName: "DBG",
-		Level:     log.DebugLevel,
-		ColorCode: color.Debug.Render,
-	},
-}
-
-func parseLevel(levelName string) Level {
-
-	if isEmpty(levelName) {
-		return DisableLevel
-	}
-
-	levelName = strings.ToLower(levelName)
-
-	for level, meta := range Levels {
-		if strings.ToLower(meta.Name) == levelName {
-			return level
-		}
-
-	}
-
-	return DisableLevel
 }
 
 func toJson(input interface{}) string {
