@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gookit/color"
 	"github.com/phuslu/log"
 )
 
@@ -25,6 +26,11 @@ var (
 	}
 )
 
+func init() {
+	// Enable color output for Windows terminals
+	color.ForceOpenColor()
+}
+
 // New creates a new GinWriter instance
 func New() *GinWriter {
 	return &GinWriter{
@@ -41,7 +47,6 @@ type LogEvent struct {
 	Message       string    `json:"message"`
 	Error         string    `json:"error"`
 }
-
 
 func (w *GinWriter) Write(e []byte) (n int, err error) {
 
@@ -95,7 +100,7 @@ func (w *GinWriter) writeline(event []byte) error {
 		logentry.Message = strings.ReplaceAll(logentry.Message, "[GIN-debug] ", "")
 		logentry.Level = "debug"
 	default:
-	// Default to info level for standard Gin logs
+		// Default to info level for standard Gin logs
 		logentry.Level = "info"
 	}
 
@@ -104,14 +109,10 @@ func (w *GinWriter) writeline(event []byte) error {
 		return nil
 	}
 
-	// Convert to JSON and write to output
-	jsonOutput, err := json.Marshal(logentry)
-	if err != nil {
-		internallog.Warn().Str("prefix", "writeline").Err(err).Msg("Failed to marshal log entry")
-		return err
-	}
+	// Format and write console output directly (matching ConsoleWriter format)
+	formattedOutput := w.formatConsoleOutput(&logentry)
 
-	_, err = fmt.Fprintf(w.Out, "%s\n", string(jsonOutput))
+	_, err := fmt.Fprintf(w.Out, "%s\n", formattedOutput)
 	if err != nil {
 		internallog.Warn().Str("prefix", "writeline").Err(err).Msg("Failed to write log entry")
 		return err
@@ -135,6 +136,60 @@ func shouldLogLevel(level string, writerLevel log.Level) bool {
 		return writerLevel <= log.DebugLevel
 	default:
 		return true
+	}
+}
+
+// formatConsoleOutput formats the log entry to match ConsoleWriter format
+func (w *GinWriter) formatConsoleOutput(l *LogEvent) string {
+	timestamp := l.Timestamp.Format("15:04:05.000")
+
+	output := fmt.Sprintf("%s|%s", w.levelprint(l.Level, true), timestamp)
+
+	if l.Prefix != "" {
+		output += fmt.Sprintf("|%s", l.Prefix)
+	}
+
+	if l.Message != "" {
+		output += fmt.Sprintf("|%s", l.Message)
+	}
+
+	if l.Error != "" {
+		output += fmt.Sprintf("|%s", l.Error)
+	}
+
+	return output
+}
+
+// levelprint formats the log level with color (matching ConsoleWriter implementation)
+func (w *GinWriter) levelprint(level string, colour bool) string {
+	switch strings.ToLower(level) {
+	case "fatal":
+		if colour {
+			return color.Red.Render("FTL")
+		}
+		return "FTL"
+	case "error":
+		if colour {
+			return color.Red.Render("ERR")
+		}
+		return "ERR"
+	case "warn":
+		if colour {
+			return color.Yellow.Render("WRN")
+		}
+		return "WRN"
+	case "info":
+		if colour {
+			return color.Green.Render("INF")
+		}
+		return "INF"
+	case "debug":
+		if colour {
+			return color.Cyan.Render("DBG")
+		}
+		return "DBG"
+	default:
+		return level
 	}
 }
 
