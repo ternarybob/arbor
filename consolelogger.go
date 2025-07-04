@@ -75,7 +75,7 @@ func ConsoleLogger() IConsoleLogger {
 
 	return &consolelogger{
 		logger: log.Logger{
-			Level:  loglevel,
+			Level: loglevel,
 			Writer: &log.ConsoleWriter{
 				ColorOutput: true,
 			},
@@ -129,7 +129,7 @@ func (d *consolelogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
 
 	o := &consolelogger{
 		logger: log.Logger{
-			Level:  currentlevel,
+			Level: currentlevel,
 			Writer: &log.ConsoleWriter{
 				ColorOutput: true,
 			},
@@ -171,7 +171,7 @@ func (d *consolelogger) WithWriter(name string, writer io.Writer) IConsoleLogger
 
 	o := &consolelogger{
 		logger: log.Logger{
-			Level:  currentlevel,
+			Level: currentlevel,
 			Writer: &log.ConsoleWriter{
 				ColorOutput: true,
 			},
@@ -228,7 +228,7 @@ func (d *consolelogger) WithCorrelationId(correlationid string) IConsoleLogger {
 
 	return &consolelogger{
 		logger: log.Logger{
-			Level:  currentLevel,
+			Level: currentLevel,
 			Writer: &log.ConsoleWriter{
 				ColorOutput: true,
 			},
@@ -269,7 +269,7 @@ func (d *consolelogger) WithPrefix(value string) IConsoleLogger {
 	// Create new logger with only the new prefix (replaces existing prefix)
 	return &consolelogger{
 		logger: log.Logger{
-			Level:  currentLevel,
+			Level: currentLevel,
 			Writer: &log.ConsoleWriter{
 				ColorOutput: true,
 			},
@@ -312,7 +312,7 @@ func (d *consolelogger) WithPrefixExtend(value string) IConsoleLogger {
 	// Create new logger with extended prefix
 	return &consolelogger{
 		logger: log.Logger{
-			Level:  currentLevel,
+			Level: currentLevel,
 			Writer: &log.ConsoleWriter{
 				ColorOutput: true,
 			},
