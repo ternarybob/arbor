@@ -120,7 +120,7 @@ func (w *GinWriter) writeline(event []byte) error {
 
 func (w *GinWriter) format(l *LogEvent, colour bool) string {
 
-	timestamp := l.Time.Format(time.Stamp)
+	timestamp := l.Time.Format("15:04:05.000")
 
 	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
 
