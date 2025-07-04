@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gookit/color"
 	"github.com/phuslu/log"
 )
 
@@ -17,6 +18,11 @@ var (
 		Writer: &log.ConsoleWriter{},
 	}
 )
+
+func init() {
+	// Enable color output for Windows terminals
+	color.ForceOpenColor()
+}
 
 type ConsoleWriter struct {
 	Out io.Writer

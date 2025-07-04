@@ -29,7 +29,8 @@ type LevelMetadata struct {
 var Levels = map[Level]*LevelMetadata{
 	DisableLevel: {
 		Name:      "disable",
-		ShortName: "",
+		ShortName: "DIS",
+		ColorCode: color.Gray.Render,
 	},
 	FatalLevel: {
 		Name:      "fatal",
@@ -65,9 +66,18 @@ var Levels = map[Level]*LevelMetadata{
 
 func levelprint(level string, colour bool) string {
 
-	_level := Levels[parselevel(level)]
+	parsedLevel := parselevel(level)
+	_level := Levels[parsedLevel]
 
-	if colour {
+	// Handle nil level metadata or missing ColorCode
+	if _level == nil {
+		return level // Fallback to original level string
+	}
+
+	// Debug output to see what's happening
+	// fmt.Printf("[DEBUG] level=%s, parsedLevel=%d, colour=%v, hasColorCode=%v\n", level, parsedLevel, colour, _level.ColorCode != nil)
+
+	if colour && _level.ColorCode != nil {
 		return _level.ColorCode(_level.ShortName)
 	} else {
 		return _level.ShortName

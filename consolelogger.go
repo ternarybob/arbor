@@ -76,7 +76,9 @@ func ConsoleLogger() IConsoleLogger {
 	return &consolelogger{
 		logger: log.Logger{
 			Level:  loglevel,
-			Writer: &log.ConsoleWriter{},
+			Writer: &log.ConsoleWriter{
+				ColorOutput: true,
+			},
 		},
 		writers: namedwriters,
 	}
@@ -128,7 +130,9 @@ func (d *consolelogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
 	o := &consolelogger{
 		logger: log.Logger{
 			Level:  currentlevel,
-			Writer: &log.ConsoleWriter{},
+			Writer: &log.ConsoleWriter{
+				ColorOutput: true,
+			},
 		},
 		writers: d.writers,
 	}
@@ -168,7 +172,9 @@ func (d *consolelogger) WithWriter(name string, writer io.Writer) IConsoleLogger
 	o := &consolelogger{
 		logger: log.Logger{
 			Level:  currentlevel,
-			Writer: &log.ConsoleWriter{},
+			Writer: &log.ConsoleWriter{
+				ColorOutput: true,
+			},
 		},
 		writers: d.writers,
 	}
@@ -223,7 +229,9 @@ func (d *consolelogger) WithCorrelationId(correlationid string) IConsoleLogger {
 	return &consolelogger{
 		logger: log.Logger{
 			Level:  currentLevel,
-			Writer: &log.ConsoleWriter{},
+			Writer: &log.ConsoleWriter{
+				ColorOutput: true,
+			},
 		},
 		writers: d.writers,
 	}
@@ -262,7 +270,9 @@ func (d *consolelogger) WithPrefix(value string) IConsoleLogger {
 	return &consolelogger{
 		logger: log.Logger{
 			Level:  currentLevel,
-			Writer: &log.ConsoleWriter{},
+			Writer: &log.ConsoleWriter{
+				ColorOutput: true,
+			},
 		},
 		writers:       d.writers,
 		currentPrefix: value, // Track the new prefix
@@ -303,7 +313,9 @@ func (d *consolelogger) WithPrefixExtend(value string) IConsoleLogger {
 	return &consolelogger{
 		logger: log.Logger{
 			Level:  currentLevel,
-			Writer: &log.ConsoleWriter{},
+			Writer: &log.ConsoleWriter{
+				ColorOutput: true,
+			},
 		},
 		writers:       d.writers,
 		currentPrefix: extendedPrefix, // Track the extended prefix
