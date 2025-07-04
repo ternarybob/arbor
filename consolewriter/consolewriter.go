@@ -90,7 +90,7 @@ func (w *ConsoleWriter) writeline(event []byte) error {
 
 func (w *ConsoleWriter) format(l *LogEvent, colour bool) string {
 
-	timestamp := l.Timestamp.Format(time.Stamp)
+	timestamp := l.Timestamp.Format("15:04:05.000")
 
 	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
 

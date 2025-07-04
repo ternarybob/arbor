@@ -49,7 +49,6 @@ func ConsoleLogger() IConsoleLogger {
 	var (
 		cfg          *satus.AppConfig     = satus.GetAppConfig()
 		namedwriters map[string]io.Writer = make(map[string]io.Writer)
-		writers      []io.Writer
 	)
 
 	loglevel, err := ParseLevel(cfg.Service.LogLevel)
@@ -57,27 +56,16 @@ func ConsoleLogger() IConsoleLogger {
 		loglevel = InfoLevel
 	}
 
-	// phuslu/log doesn't have a global level setter
-	internallog.Trace().Msgf("Setting cfg.Service.LogLevel:%s loglevel:%s", cfg.Service.LogLevel, loglevel.String())
-
 	// Add Writers
 	namedwriters[WRITER_CONSOLE] = consolewriter.New()
 
-	for k, v := range namedwriters {
-
-		internallog.Trace().Msgf("Adding Writer name:%s type:%s", k, reflect.TypeOf(v))
-
-		writers = append(writers, namedwriters[k])
-
-	}
-
-	// Note: simplified to use basic ConsoleWriter since phuslu/log doesn't support MultiWriter like zerolog
-
 	return &consolelogger{
 		logger: log.Logger{
-			Level: loglevel,
+			Level:      loglevel,
+			TimeFormat: "15:04:05.000",
 			Writer: &log.ConsoleWriter{
-				ColorOutput: true,
+				ColorOutput:    true,
+				EndWithMessage: true,
 			},
 		},
 		writers: namedwriters,
@@ -129,9 +117,11 @@ func (d *consolelogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
 
 	o := &consolelogger{
 		logger: log.Logger{
-			Level: currentlevel,
+			Level:      currentlevel,
+			TimeFormat: "15:04:05.000",
 			Writer: &log.ConsoleWriter{
-				ColorOutput: true,
+				ColorOutput:    true,
+				EndWithMessage: true,
 			},
 		},
 		writers: d.writers,
@@ -171,9 +161,11 @@ func (d *consolelogger) WithWriter(name string, writer io.Writer) IConsoleLogger
 
 	o := &consolelogger{
 		logger: log.Logger{
-			Level: currentlevel,
+			Level:      currentlevel,
+			TimeFormat: "15:04:05.000",
 			Writer: &log.ConsoleWriter{
-				ColorOutput: true,
+				ColorOutput:    true,
+				EndWithMessage: true,
 			},
 		},
 		writers: d.writers,
@@ -228,9 +220,11 @@ func (d *consolelogger) WithCorrelationId(correlationid string) IConsoleLogger {
 
 	return &consolelogger{
 		logger: log.Logger{
-			Level: currentLevel,
+			Level:      currentLevel,
+			TimeFormat: "15:04:05.000",
 			Writer: &log.ConsoleWriter{
-				ColorOutput: true,
+				ColorOutput:    true,
+				EndWithMessage: true,
 			},
 		},
 		writers: d.writers,
@@ -269,9 +263,11 @@ func (d *consolelogger) WithPrefix(value string) IConsoleLogger {
 	// Create new logger with only the new prefix (replaces existing prefix)
 	return &consolelogger{
 		logger: log.Logger{
-			Level: currentLevel,
+			Level:      currentLevel,
+			TimeFormat: "15:04:05.000",
 			Writer: &log.ConsoleWriter{
-				ColorOutput: true,
+				ColorOutput:    true,
+				EndWithMessage: true,
 			},
 		},
 		writers:       d.writers,
@@ -312,9 +308,11 @@ func (d *consolelogger) WithPrefixExtend(value string) IConsoleLogger {
 	// Create new logger with extended prefix
 	return &consolelogger{
 		logger: log.Logger{
-			Level: currentLevel,
+			Level:      currentLevel,
+			TimeFormat: "15:04:05.000",
 			Writer: &log.ConsoleWriter{
-				ColorOutput: true,
+				ColorOutput:    true,
+				EndWithMessage: true,
 			},
 		},
 		writers:       d.writers,
