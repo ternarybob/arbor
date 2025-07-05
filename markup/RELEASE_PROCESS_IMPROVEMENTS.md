@@ -29,19 +29,15 @@ The script now follows this improved process:
    - Pushes both commit and tag to GitHub
    - Only the tag push triggers the release workflow (no duplicates)
 
-### 2. GitHub Actions Workflow Separation
+### 2. Simplified GitHub Actions Workflow
 
-#### Main Branch CI (`ci-main.yml`)
-- Triggers on: Push to `main` branch, Pull Requests to `main`
-- Purpose: Continuous integration for regular development
-- Jobs: Test & Validate only (no releases)
-
-#### Release Pipeline (`ci.yml`)
-- Triggers on: Push of tags matching `v*` pattern
-- Purpose: Create GitHub releases for tagged versions
+#### Single CI/CD Pipeline (`ci.yml`)
+- Triggers on: 
+  - Push of tags matching `v*` pattern (for releases)
+  - Pull Requests to `main` (for validation only)
 - Jobs: 
-  - Test & Validate
-  - Create Release (only runs if tests pass)
+  - **Test & Validate**: Always runs for both triggers
+  - **Create Release**: Only runs on tag pushes (not on PRs)
 
 ### 3. Key Improvements
 
@@ -97,8 +93,7 @@ The script now follows this improved process:
 
 ## Workflow Files
 
-- `.github/workflows/ci-main.yml` - Main branch continuous integration
-- `.github/workflows/ci.yml` - Release pipeline (tag-triggered only)
+- `.github/workflows/ci.yml` - Single CI/CD pipeline (tests PRs, creates releases on tags)
 - `../helpers/create-release.ps1` - Enhanced release script with validation
 
 ## Testing the Process
