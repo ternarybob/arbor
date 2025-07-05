@@ -31,7 +31,7 @@ func TestConsoleWriter_WithLevel(t *testing.T) {
 	}
 
 	writer := ConsoleWriter(config)
-	
+
 	// Test changing level
 	newWriter := writer.WithLevel(log.DebugLevel)
 	if newWriter == nil {
@@ -52,7 +52,7 @@ func TestConsoleWriter_Write(t *testing.T) {
 	}
 
 	writer := ConsoleWriter(config)
-	
+
 	testCases := []struct {
 		name     string
 		input    []byte
@@ -120,7 +120,7 @@ func TestConsoleWriter_Format(t *testing.T) {
 	}
 
 	cw := ConsoleWriter(config).(*consoleWriter)
-	
+
 	logEvent := &models.LogEvent{
 		Level:   log.InfoLevel,
 		Message: "test message",

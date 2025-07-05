@@ -1,8 +1,8 @@
 package models
 
 import (
-	"time"
 	"github.com/phuslu/log"
+	"time"
 )
 
 type LogEvent struct {

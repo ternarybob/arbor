@@ -89,34 +89,34 @@ func (le *logEvent) writeLog(message string) {
 func (le *logEvent) formatLogEntry(event *models.LogEvent) string {
 	timestamp := event.Timestamp.Format("15:04:05.000")
 	levelStr := le.levelToString(event.Level)
-	
+
 	output := fmt.Sprintf("%s|%s", levelStr, timestamp)
-	
+
 	if event.Prefix != "" {
 		output += fmt.Sprintf("|%s", event.Prefix)
 	}
-	
+
 	if event.Function != "" {
 		output += fmt.Sprintf("|%s", event.Function)
 	}
-	
+
 	if event.CorrelationID != "" {
 		output += fmt.Sprintf("|%s", event.CorrelationID)
 	}
-	
+
 	// Add custom fields
 	for key, value := range event.Fields {
 		output += fmt.Sprintf("|%s=%v", key, value)
 	}
-	
+
 	if event.Error != "" {
 		output += fmt.Sprintf("|error=%s", event.Error)
 	}
-	
+
 	if event.Message != "" {
 		output += fmt.Sprintf("|%s", event.Message)
 	}
-	
+
 	return output + "\n"
 }
 

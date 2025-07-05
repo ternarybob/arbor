@@ -42,7 +42,7 @@ func TestFileWriter_DefaultValues(t *testing.T) {
 	}
 
 	fw := writer.(*fileWriter)
-	
+
 	// Test that logger was configured
 	if fw.logger.Writer == nil {
 		t.Error("FileWriter should have a writer configured")
@@ -58,7 +58,7 @@ func TestFileWriter_WithLevel(t *testing.T) {
 	}
 
 	writer := FileWriter(config)
-	
+
 	// Test changing level
 	newWriter := writer.WithLevel(log.DebugLevel)
 	if newWriter == nil {
@@ -89,7 +89,7 @@ func TestFileWriter_Write(t *testing.T) {
 	}
 
 	writer := FileWriter(config)
-	
+
 	testCases := []struct {
 		name     string
 		input    []byte
@@ -222,7 +222,7 @@ func TestFileWriter_InterfaceCompliance(t *testing.T) {
 	}
 
 	writer := FileWriter(config)
-	
+
 	// Test all IWriter interface methods
 	t.Run("WithLevel", func(t *testing.T) {
 		result := writer.WithLevel(log.DebugLevel)

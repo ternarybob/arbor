@@ -21,7 +21,7 @@ func TestNewMemoryWriter(t *testing.T) {
 
 func TestMemoryWriter_WithLevel(t *testing.T) {
 	writer := NewMemoryWriter()
-	
+
 	// Test changing level
 	newWriter := writer.WithLevel(log.DebugLevel)
 	if newWriter == nil {
@@ -36,7 +36,7 @@ func TestMemoryWriter_WithLevel(t *testing.T) {
 
 func TestMemoryWriter_Write(t *testing.T) {
 	writer := NewMemoryWriter()
-	
+
 	testCases := []struct {
 		name     string
 		input    []byte
@@ -70,10 +70,10 @@ func TestMemoryWriter_Write(t *testing.T) {
 func TestMemoryWriter_WriteLogEvent(t *testing.T) {
 	// Clear any existing entries
 	ClearAllEntries()
-	
+
 	writer := NewMemoryWriter()
 	correlationID := "test-correlation-123"
-	
+
 	logEvent := models.LogEvent{
 		Level:         log.InfoLevel,
 		Timestamp:     time.Now(),
@@ -82,13 +82,13 @@ func TestMemoryWriter_WriteLogEvent(t *testing.T) {
 		Prefix:        "TEST",
 		Error:         "test error",
 	}
-	
+
 	// Convert to JSON as the memory writer expects
 	jsonData, err := json.Marshal(logEvent)
 	if err != nil {
 		t.Fatalf("Failed to marshal log event: %v", err)
 	}
-	
+
 	// Write the log event
 	n, err := writer.Write(jsonData)
 	if err != nil {
@@ -97,7 +97,7 @@ func TestMemoryWriter_WriteLogEvent(t *testing.T) {
 	if n != len(jsonData) {
 		t.Errorf("Expected %d bytes written, got %d", len(jsonData), n)
 	}
-	
+
 	// Verify the entry was stored
 	entries, err := GetEntries(correlationID)
 	if err != nil {
@@ -111,20 +111,20 @@ func TestMemoryWriter_WriteLogEvent(t *testing.T) {
 func TestMemoryWriter_WriteWithoutCorrelationID(t *testing.T) {
 	// Clear any existing entries
 	ClearAllEntries()
-	
+
 	writer := NewMemoryWriter()
-	
+
 	logEvent := models.LogEvent{
 		Level:     log.InfoLevel,
 		Timestamp: time.Now(),
 		Message:   "test message without correlation ID",
 	}
-	
+
 	jsonData, err := json.Marshal(logEvent)
 	if err != nil {
 		t.Fatalf("Failed to marshal log event: %v", err)
 	}
-	
+
 	// Write the log event
 	n, err := writer.Write(jsonData)
 	if err != nil {
@@ -133,7 +133,7 @@ func TestMemoryWriter_WriteWithoutCorrelationID(t *testing.T) {
 	if n != len(jsonData) {
 		t.Errorf("Expected %d bytes written, got %d", len(jsonData), n)
 	}
-	
+
 	// Should not be stored since no correlation ID
 	entries, err := GetEntries("")
 	if err != nil {
@@ -147,10 +147,10 @@ func TestMemoryWriter_WriteWithoutCorrelationID(t *testing.T) {
 func TestGetEntries(t *testing.T) {
 	// Clear any existing entries
 	ClearAllEntries()
-	
+
 	writer := NewMemoryWriter()
 	correlationID := "test-get-entries"
-	
+
 	// Add multiple log events
 	for i := 0; i < 3; i++ {
 		logEvent := models.LogEvent{
@@ -159,11 +159,11 @@ func TestGetEntries(t *testing.T) {
 			CorrelationID: correlationID,
 			Message:       "test message",
 		}
-		
+
 		jsonData, _ := json.Marshal(logEvent)
 		writer.Write(jsonData)
 	}
-	
+
 	// Get entries
 	entries, err := GetEntries(correlationID)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestGetEntries(t *testing.T) {
 	if len(entries) != 3 {
 		t.Errorf("Expected 3 entries, got %d", len(entries))
 	}
-	
+
 	// Test with empty correlation ID
 	entries, err = GetEntries("")
 	if err != nil {
@@ -186,10 +186,10 @@ func TestGetEntries(t *testing.T) {
 func TestGetEntriesWithLevel(t *testing.T) {
 	// Clear any existing entries
 	ClearAllEntries()
-	
+
 	writer := NewMemoryWriter()
 	correlationID := "test-level-filter"
-	
+
 	// Add log events with different levels
 	levels := []log.Level{log.DebugLevel, log.InfoLevel, log.WarnLevel, log.ErrorLevel}
 	for _, level := range levels {
@@ -199,11 +199,11 @@ func TestGetEntriesWithLevel(t *testing.T) {
 			CorrelationID: correlationID,
 			Message:       "test message",
 		}
-		
+
 		jsonData, _ := json.Marshal(logEvent)
 		writer.Write(jsonData)
 	}
-	
+
 	// Get entries with minimum level of Warn
 	entries, err := GetEntriesWithLevel(correlationID, log.WarnLevel)
 	if err != nil {
@@ -213,7 +213,7 @@ func TestGetEntriesWithLevel(t *testing.T) {
 	if len(entries) != 2 {
 		t.Errorf("Expected 2 entries with WarnLevel filter, got %d", len(entries))
 	}
-	
+
 	// Get entries with minimum level of Info
 	entries, err = GetEntriesWithLevel(correlationID, log.InfoLevel)
 	if err != nil {
@@ -233,17 +233,17 @@ func TestFormatLogEvent(t *testing.T) {
 		Prefix:    "TEST",
 		Error:     "test error",
 	}
-	
+
 	result := formatLogEvent(logEvent)
 	if result == "" {
 		t.Error("FormatLogEvent should not return empty string")
 	}
-	
+
 	// Should contain level abbreviation
 	if !contains(result, "INF") {
 		t.Error("Formatted log should contain level abbreviation")
 	}
-	
+
 	// Should contain message
 	if !contains(result, "test message") {
 		t.Error("Formatted log should contain message")
@@ -253,10 +253,10 @@ func TestFormatLogEvent(t *testing.T) {
 func TestClearEntries(t *testing.T) {
 	// Clear any existing entries
 	ClearAllEntries()
-	
+
 	writer := NewMemoryWriter()
 	correlationID := "test-clear"
-	
+
 	// Add a log event
 	logEvent := models.LogEvent{
 		Level:         log.InfoLevel,
@@ -264,19 +264,19 @@ func TestClearEntries(t *testing.T) {
 		CorrelationID: correlationID,
 		Message:       "test message",
 	}
-	
+
 	jsonData, _ := json.Marshal(logEvent)
 	writer.Write(jsonData)
-	
+
 	// Verify entry exists
 	entries, _ := GetEntries(correlationID)
 	if len(entries) != 1 {
 		t.Errorf("Expected 1 entry before clear, got %d", len(entries))
 	}
-	
+
 	// Clear entries for this correlation ID
 	ClearEntries(correlationID)
-	
+
 	// Verify entry is gone
 	entries, _ = GetEntries(correlationID)
 	if len(entries) != 0 {
@@ -287,10 +287,10 @@ func TestClearEntries(t *testing.T) {
 func TestGetStoredCorrelationIDs(t *testing.T) {
 	// Clear any existing entries
 	ClearAllEntries()
-	
+
 	writer := NewMemoryWriter()
 	correlationIDs := []string{"test-1", "test-2", "test-3"}
-	
+
 	// Add log events with different correlation IDs
 	for _, id := range correlationIDs {
 		logEvent := models.LogEvent{
@@ -299,17 +299,17 @@ func TestGetStoredCorrelationIDs(t *testing.T) {
 			CorrelationID: id,
 			Message:       "test message",
 		}
-		
+
 		jsonData, _ := json.Marshal(logEvent)
 		writer.Write(jsonData)
 	}
-	
+
 	// Get stored correlation IDs
 	storedIDs := GetStoredCorrelationIDs()
 	if len(storedIDs) != 3 {
 		t.Errorf("Expected 3 correlation IDs, got %d", len(storedIDs))
 	}
-	
+
 	// Verify all IDs are present
 	for _, expectedID := range correlationIDs {
 		found := false
@@ -328,10 +328,10 @@ func TestGetStoredCorrelationIDs(t *testing.T) {
 func TestBufferLimit(t *testing.T) {
 	// Clear any existing entries
 	ClearAllEntries()
-	
+
 	writer := NewMemoryWriter()
 	correlationID := "test-buffer-limit"
-	
+
 	// Add more entries than the buffer limit
 	for i := 0; i < BUFFER_LIMIT+10; i++ {
 		logEvent := models.LogEvent{
@@ -340,11 +340,11 @@ func TestBufferLimit(t *testing.T) {
 			CorrelationID: correlationID,
 			Message:       "test message",
 		}
-		
+
 		jsonData, _ := json.Marshal(logEvent)
 		writer.Write(jsonData)
 	}
-	
+
 	// Should not exceed buffer limit
 	entries, _ := GetEntries(correlationID)
 	if len(entries) > BUFFER_LIMIT {

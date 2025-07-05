@@ -21,18 +21,18 @@ func main() {
 	// Example 2: Using logger instance (like logger.GetLogger().Warn().Str(...))
 	logger := arbor.GetLogger()
 	logger.Warn().Str("connection", "database").Err(errors.New("timeout")).Msg("Connection failed")
-	
+
 	fmt.Println("\n3. Logger with context:")
 	// Example 3: Logger with context (correlation ID and prefix)
 	contextLogger := logger.WithCorrelationId("req-123").WithPrefix("API")
 	contextLogger.Info().Str("endpoint", "/users").Str("method", "GET").Msg("Request processed")
-	
+
 	fmt.Println("\n4. Formatted messages:")
 	// Example 4: Formatted messages (like log.Info().Msgf(...))
 	port := 8080
 	host := "localhost"
 	arbor.Info().Msgf("Server starting on %s:%d", host, port)
-	
+
 	fmt.Println("\n5. Chaining multiple fields:")
 	// Example 5: Chaining multiple fields
 	arbor.Warn().

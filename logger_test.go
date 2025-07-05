@@ -21,11 +21,11 @@ func TestLogger_New(t *testing.T) {
 
 func TestLogger_WithCorrelationId(t *testing.T) {
 	logger := Logger()
-	
+
 	// Test with provided correlation ID
 	correlationID := "test-correlation-123"
 	newLogger := logger.WithCorrelationId(correlationID)
-	
+
 	if newLogger == nil {
 		t.Error("WithCorrelationId should not return nil")
 	}
@@ -39,11 +39,11 @@ func TestLogger_WithCorrelationId(t *testing.T) {
 
 func TestLogger_WithPrefix(t *testing.T) {
 	logger := Logger()
-	
+
 	// Test with valid prefix
 	prefix := "API"
 	newLogger := logger.WithPrefix(prefix)
-	
+
 	if newLogger == nil {
 		t.Error("WithPrefix should not return nil")
 	}
@@ -57,7 +57,7 @@ func TestLogger_WithPrefix(t *testing.T) {
 
 func TestLogger_WithLevel(t *testing.T) {
 	logger := Logger()
-	
+
 	testLevels := []LogLevel{
 		TraceLevel,
 		DebugLevel,
@@ -80,7 +80,7 @@ func TestLogger_WithLevel(t *testing.T) {
 
 func TestLogger_WithContext(t *testing.T) {
 	logger := Logger()
-	
+
 	// Test with valid key-value pair
 	newLogger := logger.WithContext("key", "value")
 	if newLogger == nil {
@@ -102,7 +102,7 @@ func TestLogger_WithContext(t *testing.T) {
 
 func TestLogger_WithFileWriter(t *testing.T) {
 	logger := Logger()
-	
+
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
 		Level:      log.InfoLevel,
@@ -118,7 +118,7 @@ func TestLogger_WithFileWriter(t *testing.T) {
 
 func TestLogger_FluentMethods(t *testing.T) {
 	logger := Logger()
-	
+
 	// Test all fluent logging methods
 	testCases := []struct {
 		name   string
@@ -187,7 +187,6 @@ func TestGetLogger(t *testing.T) {
 	}
 }
 
-
 func TestLevelToString_Function(t *testing.T) {
 	testCases := []struct {
 		level    log.Level
@@ -234,7 +233,7 @@ func TestParseLevelString(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
 			result, err := ParseLevelString(tc.input)
-			
+
 			if tc.hasError {
 				if err == nil {
 					t.Error("Expected error for invalid level")
@@ -279,10 +278,10 @@ func TestParseLogLevel(t *testing.T) {
 
 func TestLogger_GetFunctionName(t *testing.T) {
 	logger := Logger().(*logger)
-	
+
 	// This will test the function name detection
 	funcName := logger.getFunctionName()
-	
+
 	// Should contain test function name or be empty (acceptable for edge cases)
 	if funcName != "" && !strings.Contains(funcName, "Test") {
 		// This is informational - function name detection can vary
@@ -293,20 +292,20 @@ func TestLogger_GetFunctionName(t *testing.T) {
 func TestLogger_ChainedUsage(t *testing.T) {
 	// Test complex chained usage
 	logger := Logger().WithCorrelationId("test-123").WithPrefix("TEST")
-	
+
 	// This should not panic and should work end-to-end
 	event := logger.Info().Str("key1", "value1").Str("key2", "value2")
 	if event == nil {
 		t.Error("Chained usage should not return nil")
 	}
-	
+
 	// Verify we can add an error and still chain
 	err := errors.New("test error")
 	event2 := event.Err(err)
 	if event2 == nil {
 		t.Error("Chained usage with error should not return nil")
 	}
-	
+
 	// Should be the same instance
 	if event != event2 {
 		t.Error("Chained methods should return the same instance")

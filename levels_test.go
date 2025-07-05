@@ -9,9 +9,9 @@ import (
 func TestLogLevel_Constants(t *testing.T) {
 	// Test that our constants match phuslu/log constants
 	testCases := []struct {
-		arborLevel LogLevel
+		arborLevel  LogLevel
 		phusluLevel log.Level
-		name       string
+		name        string
 	}{
 		{TraceLevel, log.TraceLevel, "Trace"},
 		{DebugLevel, log.DebugLevel, "Debug"},
@@ -60,7 +60,7 @@ func TestParseLevelString_AllCases(t *testing.T) {
 		{"DISABLED", log.PanicLevel + 1, false},
 		{"off", log.PanicLevel + 1, false},
 		{"OFF", log.PanicLevel + 1, false},
-		
+
 		// Invalid cases
 		{"invalid", log.InfoLevel, true},
 		{"unknown", log.InfoLevel, true},
@@ -72,7 +72,7 @@ func TestParseLevelString_AllCases(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
 			result, err := ParseLevelString(tc.input)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error for input '%s'", tc.input)
@@ -107,7 +107,7 @@ func TestParseLogLevel_AllCases(t *testing.T) {
 		{int(FatalLevel), log.FatalLevel, "Fatal"},
 		{int(PanicLevel), log.PanicLevel, "Panic"},
 		{int(Disabled), 0, "Disabled"},
-		
+
 		// Edge cases
 		{-1, log.InfoLevel, "Negative"},
 		{0, 0, "Zero"},
@@ -128,13 +128,13 @@ func TestParseLogLevel_AllCases(t *testing.T) {
 func TestLogLevel_TypeDefinition(t *testing.T) {
 	// Test that LogLevel is properly defined as uint32
 	var level LogLevel = InfoLevel
-	
+
 	// Should be able to convert to int
 	intLevel := int(level)
 	if intLevel != int(log.InfoLevel) {
 		t.Errorf("Expected int conversion to work, got %d", intLevel)
 	}
-	
+
 	// Should be able to convert back
 	backToLevel := LogLevel(intLevel)
 	if backToLevel != level {
@@ -147,23 +147,23 @@ func TestLogLevel_Comparison(t *testing.T) {
 	if TraceLevel >= DebugLevel {
 		t.Error("TraceLevel should be less than DebugLevel")
 	}
-	
+
 	if DebugLevel >= InfoLevel {
 		t.Error("DebugLevel should be less than InfoLevel")
 	}
-	
+
 	if InfoLevel >= WarnLevel {
 		t.Error("InfoLevel should be less than WarnLevel")
 	}
-	
+
 	if WarnLevel >= ErrorLevel {
 		t.Error("WarnLevel should be less than ErrorLevel")
 	}
-	
+
 	if ErrorLevel >= FatalLevel {
 		t.Error("ErrorLevel should be less than FatalLevel")
 	}
-	
+
 	if FatalLevel >= PanicLevel {
 		t.Error("FatalLevel should be less than PanicLevel")
 	}
@@ -172,7 +172,7 @@ func TestLogLevel_Comparison(t *testing.T) {
 func TestParseLevelString_CaseSensitivity(t *testing.T) {
 	// Test that parsing is case-insensitive
 	inputs := []string{"info", "INFO", "Info", "iNfO"}
-	
+
 	for _, input := range inputs {
 		t.Run(input, func(t *testing.T) {
 			result, err := ParseLevelString(input)
@@ -217,7 +217,7 @@ func TestParseLevelString_EdgeCases(t *testing.T) {
 func TestLogLevel_DefaultBehavior(t *testing.T) {
 	// Test default behavior for ParseLogLevel
 	unknownInputs := []int{-999, 1000, 123456}
-	
+
 	for _, input := range unknownInputs {
 		t.Run(string(rune(input)), func(t *testing.T) {
 			result := ParseLogLevel(input)
