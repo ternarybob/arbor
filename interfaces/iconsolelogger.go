@@ -30,7 +30,6 @@ const (
 	Disabled Level = log.PanicLevel + 1
 )
 
-
 type IConsoleLogger interface {
 	// io.Writer interface for direct usage with frameworks like Gin
 	Write(p []byte) (n int, err error)

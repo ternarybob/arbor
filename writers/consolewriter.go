@@ -164,7 +164,7 @@ func (w *ConsoleWriter) shouldLogLevel(levelStr string) bool {
 // It handles both JSON and plain text logs appropriately
 func HandleRegularLog(p []byte, writers map[string]interface{}) (n int, err error) {
 	n = len(p)
-	
+
 	// Try to parse as JSON first
 	var jsonLog map[string]interface{}
 	if json.Unmarshal(p, &jsonLog) == nil {
@@ -185,7 +185,7 @@ func HandleRegularLog(p []byte, writers map[string]interface{}) (n int, err erro
 		if writeErr != nil {
 			return n, fmt.Errorf("failed to write plain text log to console: %w", writeErr)
 		}
-		
+
 		// Create a simple JSON log entry for other writers
 		logEntry := LogEvent{
 			Level:     "info",
@@ -193,7 +193,7 @@ func HandleRegularLog(p []byte, writers map[string]interface{}) (n int, err erro
 			Prefix:    "APP",
 			Message:   strings.TrimSpace(string(p)),
 		}
-		
+
 		// Write JSON to non-console writers
 		for writerName, writer := range writers {
 			if writerName != "writerconsole" {
@@ -210,6 +210,6 @@ func HandleRegularLog(p []byte, writers map[string]interface{}) (n int, err erro
 			}
 		}
 	}
-	
+
 	return n, nil
 }

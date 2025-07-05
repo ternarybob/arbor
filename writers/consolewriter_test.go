@@ -39,22 +39,22 @@ func TestHandleRegularLog_JSON(t *testing.T) {
 			return len(p), nil
 		},
 	}
-	
+
 	writers := map[string]interface{}{
 		"test": mockWriter,
 	}
-	
+
 	jsonLog := `{"level":"info","message":"test message"}`
 	n, err := HandleRegularLog([]byte(jsonLog), writers)
-	
+
 	if err != nil {
 		t.Fatalf("HandleRegularLog returned error: %v", err)
 	}
-	
+
 	if n != len(jsonLog) {
 		t.Errorf("HandleRegularLog returned n = %d, expected %d", n, len(jsonLog))
 	}
-	
+
 	if string(capturedData) != jsonLog {
 		t.Errorf("Writer received %q, expected %q", string(capturedData), jsonLog)
 	}
@@ -69,22 +69,22 @@ func TestHandleRegularLog_PlainText(t *testing.T) {
 			return len(p), nil
 		},
 	}
-	
+
 	writers := map[string]interface{}{
 		"file": mockWriter,
 	}
-	
+
 	plainText := "This is a plain text message"
 	n, err := HandleRegularLog([]byte(plainText), writers)
-	
+
 	if err != nil {
 		t.Fatalf("HandleRegularLog returned error: %v", err)
 	}
-	
+
 	if n != len(plainText) {
 		t.Errorf("HandleRegularLog returned n = %d, expected %d", n, len(plainText))
 	}
-	
+
 	// Should have received JSON representation of the plain text
 	if !strings.Contains(string(capturedData), plainText) {
 		t.Errorf("Writer should have received JSON containing the plain text message")

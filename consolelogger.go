@@ -36,7 +36,6 @@ var (
 	copieropts copier.Option = copier.Option{IgnoreEmpty: true, DeepCopy: false}
 )
 
-
 type consolelogger struct {
 	logger        log.Logger
 	writers       map[string]io.Writer
@@ -414,7 +413,6 @@ func (d *consolelogger) WithFileWriterPattern(name string, pattern string, forma
 	return d.WithWriter(name, fileWriter), nil
 }
 
-
 func (d *consolelogger) GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error) {
 	return writers.GetEntriesWithLevel(correlationid, minLevel)
 }
@@ -422,20 +420,20 @@ func (d *consolelogger) GetMemoryLogs(correlationid string, minLevel Level) (map
 // Write implements io.Writer interface for direct usage with Gin
 func (d *consolelogger) Write(p []byte) (n int, err error) {
 	n = len(p)
-	
+
 	if n == 0 {
 		return n, nil
 	}
-	
+
 	logContent := string(p)
-	
+
 	// Create gin detector with current level
 	ginDetector := writers.NewGinDetector(d.GetLevel())
-	
+
 	if ginDetector.IsGinLog(logContent) {
 		return d.handleGinLog(p)
 	}
-	
+
 	// Handle as regular log entry using writers package
 	return d.handleRegularLog(p)
 }
@@ -443,23 +441,23 @@ func (d *consolelogger) Write(p []byte) (n int, err error) {
 // handleGinLog processes Gin log entries with proper formatting
 func (d *consolelogger) handleGinLog(p []byte) (n int, err error) {
 	n = len(p)
-	
+
 	// Create gin detector and parse log
 	ginDetector := writers.NewGinDetector(d.GetLevel())
 	logentry := ginDetector.ParseGinLog(p)
-	
+
 	// Check if we should log this level
 	if !ginDetector.ShouldLogLevel(logentry.Level) {
 		return n, nil
 	}
-	
+
 	// Write formatted output directly to stdout for console display
 	formattedOutput := ginDetector.FormatConsoleOutput(logentry)
 	_, writeErr := fmt.Fprintf(os.Stdout, "%s\n", formattedOutput)
 	if writeErr != nil {
 		internallog.Warn().Err(writeErr).Msg("Failed to write Gin log to console")
 	}
-	
+
 	// Write JSON to all other writers (file, memory, etc.)
 	for writerName, writer := range d.writers {
 		if writerName != WRITER_CONSOLE && writer != nil {
@@ -474,7 +472,7 @@ func (d *consolelogger) handleGinLog(p []byte) (n int, err error) {
 			}
 		}
 	}
-	
+
 	return n, nil
 }
 
@@ -485,7 +483,7 @@ func (d *consolelogger) handleRegularLog(p []byte) (n int, err error) {
 	for name, writer := range d.writers {
 		writerMap[name] = writer
 	}
-	
+
 	n, err = writers.HandleRegularLog(p, writerMap)
 	if err != nil {
 		// Log the error using internal logger
@@ -493,6 +491,6 @@ func (d *consolelogger) handleRegularLog(p []byte) (n int, err error) {
 		// Don't return the error, just log it and continue
 		return len(p), nil
 	}
-	
+
 	return n, nil
 }

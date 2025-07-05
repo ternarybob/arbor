@@ -62,27 +62,27 @@ func TestConsoleLogger_Write_GinLogDetection(t *testing.T) {
 func TestConsoleLogger_Write_Integration(t *testing.T) {
 	// Create a logger with memory writer to capture output
 	logger := ConsoleLogger().WithWriter("memory", writers.NewMemoryWriter())
-	
+
 	// Test Gin log
 	ginLog := "[GIN] 2023/12/07 - 15:04:05 | 200 |     123.456ms |       ::1 | GET      \"/ping\""
 	n, err := logger.Write([]byte(ginLog))
-	
+
 	if err != nil {
 		t.Fatalf("Write() returned error: %v", err)
 	}
-	
+
 	if n != len(ginLog) {
 		t.Errorf("Write() returned n = %d, expected %d", n, len(ginLog))
 	}
-	
+
 	// Test regular log
 	regularLog := "This is a regular log message"
 	n, err = logger.Write([]byte(regularLog))
-	
+
 	if err != nil {
 		t.Fatalf("Write() returned error: %v", err)
 	}
-	
+
 	if n != len(regularLog) {
 		t.Errorf("Write() returned n = %d, expected %d", n, len(regularLog))
 	}
@@ -92,18 +92,18 @@ func TestConsoleLogger_LevelFiltering(t *testing.T) {
 	// Create logger with WARN level
 	logger := ConsoleLogger().WithLevel(WarnLevel)
 	ginDetector := writers.NewGinDetector(logger.GetLevel())
-	
+
 	tests := []struct {
 		level    string
 		expected bool
 	}{
 		{"fatal", true},
-		{"error", true}, 
+		{"error", true},
 		{"warn", true},
 		{"info", false},  // Should be filtered out
 		{"debug", false}, // Should be filtered out
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.level, func(t *testing.T) {
 			result := ginDetector.ShouldLogLevel(tt.level)
@@ -117,7 +117,7 @@ func TestConsoleLogger_LevelFiltering(t *testing.T) {
 func TestConsoleLogger_FormatGinConsoleOutput(t *testing.T) {
 	logger := ConsoleLogger()
 	ginDetector := writers.NewGinDetector(logger.GetLevel())
-	
+
 	testTime := time.Date(2023, 12, 7, 15, 4, 5, 0, time.UTC)
 	logEntry := &writers.GinLogEvent{
 		Level:     "info",
@@ -125,9 +125,9 @@ func TestConsoleLogger_FormatGinConsoleOutput(t *testing.T) {
 		Prefix:    "GIN",
 		Message:   "Test message",
 	}
-	
+
 	output := ginDetector.FormatConsoleOutput(logEntry)
-	
+
 	// Should contain level, timestamp, prefix, and message
 	if !strings.Contains(output, "INF") {
 		t.Error("Output should contain formatted level")
@@ -145,7 +145,7 @@ func TestConsoleLogger_FormatGinConsoleOutput(t *testing.T) {
 
 func TestConsoleLogger_WriteImplementsInterface(t *testing.T) {
 	logger := ConsoleLogger()
-	
+
 	// This should compile - testing that ConsoleLogger implements io.Writer
 	var writer interface{} = logger
 	if _, ok := writer.(interface{ Write([]byte) (int, error) }); !ok {

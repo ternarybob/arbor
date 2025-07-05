@@ -148,7 +148,7 @@ func TestConcurrentWritesToSameFile(t *testing.T) {
 
 	// Create writers
 	for i := 0; i < numWriters; i++ {
-			fw, err := NewFileWriter(testFile, 100, 5)
+		fw, err := NewFileWriter(testFile, 100, 5)
 		if err != nil {
 			t.Fatalf("Failed to create FileWriter %d: %v", i, err)
 		}

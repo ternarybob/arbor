@@ -1,8 +1,8 @@
 package interfaces
 
 import (
-	"testing"
 	"path/filepath"
+	"testing"
 )
 
 // Import the writers package to test interface compliance
@@ -41,7 +41,7 @@ func TestWriterInterfaceCompliance(t *testing.T) {
 		// Test that FileWriter satisfies ILevelWriter interface
 		// Note: We need to create a wrapper to match the interface signature
 		var levelWriter ILevelWriter = &fileWriterWrapper{fw}
-		
+
 		// Test the interface
 		err = levelWriter.SetMinLevel("info")
 		if err != nil {
@@ -58,7 +58,7 @@ func TestWriterInterfaceCompliance(t *testing.T) {
 		defer fw.Close()
 
 		var _ IBufferedWriter = fw
-		
+
 		// Test flush
 		err = fw.Flush()
 		if err != nil {
@@ -75,7 +75,7 @@ func TestWriterInterfaceCompliance(t *testing.T) {
 		defer fw.Close()
 
 		var _ IRotatableWriter = fw
-		
+
 		// Test rotation methods
 		fw.SetMaxFiles(10)
 		err = fw.Rotate()
@@ -125,12 +125,12 @@ func TestInterfaceUsage(t *testing.T) {
 		t.Fatalf("Failed to create FileWriter: %v", err)
 	}
 	defer fw.Close()
-	
+
 	writerList = append(writerList, fw)
 
 	// Test writing through interface
 	testData := []byte(`{"level":"info","message":"Interface test"}`)
-	
+
 	for i, writer := range writerList {
 		n, err := writer.Write(testData)
 		if err != nil {
@@ -139,7 +139,7 @@ func TestInterfaceUsage(t *testing.T) {
 		if n != len(testData) {
 			t.Errorf("Writer %d wrote %d bytes, expected %d", i, n, len(testData))
 		}
-		
+
 		// Test close
 		err = writer.Close()
 		if err != nil {

@@ -138,15 +138,15 @@ func TestGinLogDetector_ParseGinLog(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := detector.ParseGinLog([]byte(tt.input))
-			
+
 			if result.Level != tt.expectedLevel {
 				t.Errorf("ParseGinLog() level = %v, expected %v", result.Level, tt.expectedLevel)
 			}
-			
+
 			if result.Message != tt.expectedMsg {
 				t.Errorf("ParseGinLog() message = %v, expected %v", result.Message, tt.expectedMsg)
 			}
-			
+
 			if result.Prefix != "GIN" {
 				t.Errorf("ParseGinLog() prefix = %v, expected GIN", result.Prefix)
 			}
@@ -156,52 +156,52 @@ func TestGinLogDetector_ParseGinLog(t *testing.T) {
 
 func TestGinLogDetector_ShouldLogLevel(t *testing.T) {
 	tests := []struct {
-		name         string
+		name          string
 		detectorLevel log.Level
-		logLevel     string
-		expected     bool
+		logLevel      string
+		expected      bool
 	}{
 		{
-			name:         "Fatal should be logged at warn level",
+			name:          "Fatal should be logged at warn level",
 			detectorLevel: log.WarnLevel,
-			logLevel:     "fatal",
-			expected:     true,
+			logLevel:      "fatal",
+			expected:      true,
 		},
 		{
-			name:         "Error should be logged at warn level",
+			name:          "Error should be logged at warn level",
 			detectorLevel: log.WarnLevel,
-			logLevel:     "error",
-			expected:     true,
+			logLevel:      "error",
+			expected:      true,
 		},
 		{
-			name:         "Warn should be logged at warn level",
+			name:          "Warn should be logged at warn level",
 			detectorLevel: log.WarnLevel,
-			logLevel:     "warn",
-			expected:     true,
+			logLevel:      "warn",
+			expected:      true,
 		},
 		{
-			name:         "Info should NOT be logged at warn level",
+			name:          "Info should NOT be logged at warn level",
 			detectorLevel: log.WarnLevel,
-			logLevel:     "info",
-			expected:     false,
+			logLevel:      "info",
+			expected:      false,
 		},
 		{
-			name:         "Debug should NOT be logged at warn level",
+			name:          "Debug should NOT be logged at warn level",
 			detectorLevel: log.WarnLevel,
-			logLevel:     "debug",
-			expected:     false,
+			logLevel:      "debug",
+			expected:      false,
 		},
 		{
-			name:         "Debug should be logged at debug level",
+			name:          "Debug should be logged at debug level",
 			detectorLevel: log.DebugLevel,
-			logLevel:     "debug",
-			expected:     true,
+			logLevel:      "debug",
+			expected:      true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-		detector := NewGinDetector(tt.detectorLevel)
+			detector := NewGinDetector(tt.detectorLevel)
 			result := detector.ShouldLogLevel(tt.logLevel)
 			if result != tt.expected {
 				t.Errorf("ShouldLogLevel(%s) = %v, expected %v", tt.logLevel, result, tt.expected)
@@ -315,11 +315,11 @@ func TestGinLogDetector_LevelPrint(t *testing.T) {
 
 func TestGinLogDetector(t *testing.T) {
 	detector := NewGinDetector(log.WarnLevel)
-	
+
 	if detector == nil {
 		t.Error("GinLogDetector should return a non-nil detector")
 	}
-	
+
 	if detector.level != log.WarnLevel {
 		t.Errorf("GinLogDetector level = %v, expected %v", detector.level, log.WarnLevel)
 	}
