@@ -4,51 +4,65 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ternarybob/arbor/interfaces"
+	"github.com/phuslu/log"
 )
 
-// Re-export Level type and constants from interfaces package for backward compatibility
-type Level = interfaces.Level
+type LogLevel uint32
 
 const (
-	// TraceLevel defines trace log level.
-	TraceLevel = interfaces.TraceLevel
-	// DebugLevel defines debug log level.
-	DebugLevel = interfaces.DebugLevel
-	// InfoLevel defines info log level.
-	InfoLevel = interfaces.InfoLevel
-	// WarnLevel defines warn log level.
-	WarnLevel = interfaces.WarnLevel
-	// ErrorLevel defines error log level.
-	ErrorLevel = interfaces.ErrorLevel
-	// FatalLevel defines fatal log level.
-	FatalLevel = interfaces.FatalLevel
-	// PanicLevel defines panic log level.
-	PanicLevel = interfaces.PanicLevel
-	// Disabled disables the logger.
-	Disabled = interfaces.Disabled
+	TraceLevel LogLevel = LogLevel(log.TraceLevel)
+	DebugLevel LogLevel = LogLevel(log.DebugLevel)
+	InfoLevel  LogLevel = LogLevel(log.InfoLevel)
+	WarnLevel  LogLevel = LogLevel(log.WarnLevel)
+	ErrorLevel LogLevel = LogLevel(log.ErrorLevel)
+	FatalLevel LogLevel = LogLevel(log.FatalLevel)
+	PanicLevel LogLevel = LogLevel(log.PanicLevel)
+	Disabled   LogLevel = LogLevel(0)
 )
 
 // ParseLevel converts a level string to a Level value.
-func ParseLevel(levelStr string) (Level, error) {
+func ParseLevelString(levelStr string) (log.Level, error) {
 	switch strings.ToLower(levelStr) {
 	case "trace":
-		return TraceLevel, nil
+		return log.TraceLevel, nil
 	case "debug":
-		return DebugLevel, nil
+		return log.DebugLevel, nil
 	case "info":
-		return InfoLevel, nil
+		return log.InfoLevel, nil
 	case "warn", "warning":
-		return WarnLevel, nil
+		return log.WarnLevel, nil
 	case "error":
-		return ErrorLevel, nil
+		return log.ErrorLevel, nil
 	case "fatal":
-		return FatalLevel, nil
+		return log.FatalLevel, nil
 	case "panic":
-		return PanicLevel, nil
+		return log.PanicLevel, nil
 	case "disabled", "off":
-		return Disabled, nil
+		return log.PanicLevel + 1, nil
 	default:
-		return InfoLevel, fmt.Errorf("unknown level: %s", levelStr)
+		return log.InfoLevel, fmt.Errorf("unknown level: %s", levelStr)
+	}
+}
+
+func ParseLogLevel(level int) log.Level {
+	switch LogLevel(level) {
+	case TraceLevel:
+		return log.TraceLevel
+	case DebugLevel:
+		return log.DebugLevel
+	case InfoLevel:
+		return log.InfoLevel
+	case WarnLevel:
+		return log.WarnLevel
+	case ErrorLevel:
+		return log.ErrorLevel
+	case FatalLevel:
+		return log.FatalLevel
+	case PanicLevel:
+		return log.PanicLevel
+	case Disabled:
+		return 0
+	default:
+		return log.InfoLevel
 	}
 }

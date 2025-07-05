@@ -1,7 +1,7 @@
-package arbor
+package common
 
 import "strings"
 
-func isEmpty(input string) bool {
+func IsEmpty(input string) bool {
 	return (len(strings.TrimSpace(input)) <= 0)
 }
