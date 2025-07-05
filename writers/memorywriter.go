@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/models"
 )
 
 type MemoryWriter struct {
@@ -22,9 +23,8 @@ const (
 )
 
 var (
-
 	// In-memory storage with mutex for thread safety
-	logStore     = make(map[string][]LogEvent)
+	logStore     = make(map[string][]models.LogEvent)
 	storeMux     sync.RWMutex
 	indexCounter uint64 = 0
 	counterMux   sync.Mutex
@@ -51,6 +51,12 @@ func (w *MemoryWriter) Write(entry []byte) (int, error) {
 	return ep, nil
 }
 
+// WithLevel implements the IWriter interface
+func (w *MemoryWriter) WithLevel(level log.Level) IWriter {
+	// Memory writer doesn't filter by level, just returns itself
+	return w
+}
+
 // Close implements the IWriter interface - no-op for memory writer
 func (w *MemoryWriter) Close() error {
 	// Memory writer doesn't need cleanup
@@ -66,7 +72,7 @@ func (w *MemoryWriter) writeline(event []byte) error {
 		return nil // Don't error on empty events
 	}
 
-	var logentry LogEvent
+	var logentry models.LogEvent
 
 	if err := json.Unmarshal(event, &logentry); err != nil {
 		internallog.Warn().Str("prefix", "writeline").Err(err).Msgf("Error:%s Event:%s", err.Error(), string(event))
@@ -89,7 +95,7 @@ func (w *MemoryWriter) writeline(event []byte) error {
 	defer storeMux.Unlock()
 
 	if _, exists := logStore[logentry.CorrelationID]; !exists {
-		logStore[logentry.CorrelationID] = make([]LogEvent, 0, BUFFER_LIMIT)
+		logStore[logentry.CorrelationID] = make([]models.LogEvent, 0, BUFFER_LIMIT)
 	}
 
 	// Add to store with buffer limit
@@ -133,7 +139,7 @@ func GetEntries(correlationid string) (map[string]string, error) {
 	// Convert to formatted strings
 	for _, logEvent := range logEvents {
 		index := formatIndex(logEvent.Index)
-		entries[index] = logEvent.format()
+		entries[index] = formatLogEvent(&logEvent)
 	}
 
 	return entries, nil
@@ -165,33 +171,14 @@ func GetEntriesWithLevel(correlationid string, minLevel log.Level) (map[string]s
 
 	// Convert to formatted strings, filtering by level
 	for _, logEvent := range logEvents {
-		// Parse the log level from string
-		// Parse level manually since phuslu/log doesn't have ParseLevel
-		var eventLevel log.Level
-		switch strings.ToLower(logEvent.Level) {
-		case "trace":
-			eventLevel = log.TraceLevel
-		case "debug":
-			eventLevel = log.DebugLevel
-		case "info":
-			eventLevel = log.InfoLevel
-		case "warn", "warning":
-			eventLevel = log.WarnLevel
-		case "error":
-			eventLevel = log.ErrorLevel
-		case "fatal":
-			eventLevel = log.FatalLevel
-		case "panic":
-			eventLevel = log.PanicLevel
-		default:
-			eventLevel = log.TraceLevel // Most verbose level to ensure inclusion
-		}
+		// The logEvent.Level is now already a log.Level type
+		eventLevel := logEvent.Level
 
 		// Only include entries at or above the minimum level
 		// Note: Lower numeric values = higher priority (error=3, warn=2, info=1, debug=0, trace=-1)
 		if eventLevel >= minLevel {
 			index := formatIndex(logEvent.Index)
-			entries[index] = logEvent.format()
+			entries[index] = formatLogEvent(&logEvent)
 		}
 	}
 
@@ -199,24 +186,28 @@ func GetEntriesWithLevel(correlationid string, minLevel log.Level) (map[string]s
 	return entries, nil
 }
 
-func (l *LogEvent) format() string {
+func formatLogEvent(l *models.LogEvent) string {
 	epoch := l.Timestamp.Format(time.Stamp)
 
 	// Use simple level formatting
-	levelStr := l.Level
+	var levelStr string
 	switch l.Level {
-	case "debug":
+	case log.DebugLevel:
 		levelStr = "DBG"
-	case "info":
+	case log.InfoLevel:
 		levelStr = "INF"
-	case "warn":
+	case log.WarnLevel:
 		levelStr = "WRN"
-	case "error":
+	case log.ErrorLevel:
 		levelStr = "ERR"
-	case "fatal":
+	case log.FatalLevel:
 		levelStr = "FTL"
-	case "panic":
+	case log.PanicLevel:
 		levelStr = "PNC"
+	case log.TraceLevel:
+		levelStr = "TRC"
+	default:
+		levelStr = "INF"
 	}
 
 	output := levelStr + "|" + epoch
@@ -263,7 +254,7 @@ func ClearAllEntries() {
 	storeMux.Lock()
 	defer storeMux.Unlock()
 
-	logStore = make(map[string][]LogEvent)
+	logStore = make(map[string][]models.LogEvent)
 }
 
 // GetStoredCorrelationIDs returns all correlation IDs that have stored logs

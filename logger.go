@@ -171,11 +171,12 @@ func (l *logger) WithFileWriter(configuration models.WriterConfiguration) ILogge
 	return l
 
 }
-func (l *logger) Write(p []byte) (n int, err error) {
 
-	return n, nil
+// func (l *logger) Write(p []byte) (n int, err error) {
 
-}
+// 	return n, nil
+
+// }
 
 func (d *logger) getFunctionName() string {
 	// Try different caller depths to find the actual calling function
@@ -203,6 +204,77 @@ func (d *logger) getFunctionName() string {
 
 	// If we can't find a good function name, return empty
 	return ""
+}
+
+// Fluent logging methods
+func (l *logger) Trace() ILogEvent {
+	return newLogEvent(l, log.TraceLevel)
+}
+
+func (l *logger) Debug() ILogEvent {
+	return newLogEvent(l, log.DebugLevel)
+}
+
+func (l *logger) Info() ILogEvent {
+	return newLogEvent(l, log.InfoLevel)
+}
+
+func (l *logger) Warn() ILogEvent {
+	return newLogEvent(l, log.WarnLevel)
+}
+
+func (l *logger) Error() ILogEvent {
+	return newLogEvent(l, log.ErrorLevel)
+}
+
+func (l *logger) Fatal() ILogEvent {
+	return newLogEvent(l, log.FatalLevel)
+}
+
+func (l *logger) Panic() ILogEvent {
+	return newLogEvent(l, log.PanicLevel)
+}
+
+// Global logger instance
+var defaultLogger ILogger
+
+// init initializes the default logger
+func init() {
+	defaultLogger = Logger()
+}
+
+// GetLogger returns the default logger instance
+func GetLogger() ILogger {
+	return defaultLogger
+}
+
+// Global convenience functions for direct logging
+func Trace() ILogEvent {
+	return defaultLogger.Trace()
+}
+
+func Debug() ILogEvent {
+	return defaultLogger.Debug()
+}
+
+func Info() ILogEvent {
+	return defaultLogger.Info()
+}
+
+func Warn() ILogEvent {
+	return defaultLogger.Warn()
+}
+
+func Error() ILogEvent {
+	return defaultLogger.Error()
+}
+
+func Fatal() ILogEvent {
+	return defaultLogger.Fatal()
+}
+
+func Panic() ILogEvent {
+	return defaultLogger.Panic()
 }
 
 // func (d *logger) GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error) {

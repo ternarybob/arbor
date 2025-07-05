@@ -67,7 +67,9 @@ func (cw *consoleWriter) format(l *models.LogEvent, colour bool) string {
 
 	timestamp := l.Timestamp.Format("15:04:05.000")
 
-	output := fmt.Sprintf("%s|%s", levelprint(l.Level, colour), timestamp)
+	// Convert log.Level to string for levelprint function
+	levelStr := levelToString(l.Level)
+	output := fmt.Sprintf("%s|%s", levelprint(levelStr, colour), timestamp)
 
 	if l.Prefix != "" {
 		output += fmt.Sprintf("|%s", l.Prefix)
@@ -82,4 +84,26 @@ func (cw *consoleWriter) format(l *models.LogEvent, colour bool) string {
 	}
 
 	return output
+}
+
+// levelToString converts log.Level to string for levelprint function
+func levelToString(level log.Level) string {
+	switch level {
+	case log.TraceLevel:
+		return "trace"
+	case log.DebugLevel:
+		return "debug"
+	case log.InfoLevel:
+		return "info"
+	case log.WarnLevel:
+		return "warn"
+	case log.ErrorLevel:
+		return "error"
+	case log.FatalLevel:
+		return "fatal"
+	case log.PanicLevel:
+		return "panic"
+	default:
+		return "info"
+	}
 }

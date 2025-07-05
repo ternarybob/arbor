@@ -35,7 +35,7 @@ func FileWriter(config models.WriterConfiguration) IWriter {
 		fileName = "logs/main.log"
 	}
 
-	fw := &consoleWriter{
+	fw := &fileWriter{
 		logger: log.Logger{
 			Level:      config.Level,
 			TimeFormat: config.TimeFormat,
