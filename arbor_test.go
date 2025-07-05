@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ternarybob/arbor/interfaces"
+
 	"github.com/labstack/echo/v4"
 	"github.com/phuslu/log"
 )
@@ -50,7 +52,7 @@ func TestConsoleLoggerCreation(t *testing.T) {
 
 func TestIConsoleLoggerInterface(t *testing.T) {
 	// Test that our interface methods are defined correctly
-	var logger IConsoleLogger
+	var logger interfaces.IConsoleLogger
 
 	// Create a mock implementation to test interface compliance
 	mockLogger := &mockConsoleLogger{}
@@ -85,56 +87,56 @@ func (m *mockConsoleLogger) GetLevel() Level {
 	return InfoLevel
 }
 
-func (m *mockConsoleLogger) WithRequestContext(ctx echo.Context) IConsoleLogger {
+func (m *mockConsoleLogger) WithRequestContext(ctx echo.Context) interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithWriter(name string, writer io.Writer) IConsoleLogger {
+func (m *mockConsoleLogger) WithWriter(name string, writer io.Writer) interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithPrefix(value string) IConsoleLogger {
+func (m *mockConsoleLogger) WithPrefix(value string) interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithPrefixExtend(value string) IConsoleLogger {
+func (m *mockConsoleLogger) WithPrefixExtend(value string) interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithCorrelationId(value string) IConsoleLogger {
+func (m *mockConsoleLogger) WithCorrelationId(value string) interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithLevel(lvl Level) IConsoleLogger {
+func (m *mockConsoleLogger) WithLevel(lvl Level) interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithContext(key string, value string) IConsoleLogger {
+func (m *mockConsoleLogger) WithContext(key string, value string) interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithFunction() IConsoleLogger {
+func (m *mockConsoleLogger) WithFunction() interfaces.IConsoleLogger {
 	return m
 }
 
-func (m *mockConsoleLogger) WithFileWriterPath(name string, filePath string, bufferSize, maxFiles int) (IConsoleLogger, error) {
+func (m *mockConsoleLogger) WithFileWriterPath(name string, filePath string, bufferSize, maxFiles int) (interfaces.IConsoleLogger, error) {
 	return m, nil
 }
 
-func (m *mockConsoleLogger) WithFileWriterCustom(name string, fileWriter io.Writer) (IConsoleLogger, error) {
+func (m *mockConsoleLogger) WithFileWriterCustom(name string, fileWriter io.Writer) (interfaces.IConsoleLogger, error) {
 	return m, nil
 }
 
-func (m *mockConsoleLogger) WithFileWriterPattern(name string, pattern string, format string, bufferSize, maxFiles int) (IConsoleLogger, error) {
+func (m *mockConsoleLogger) WithFileWriterPattern(name string, pattern string, format string, bufferSize, maxFiles int) (interfaces.IConsoleLogger, error) {
 	return m, nil
-}
-
-func (m *mockConsoleLogger) GinWriter() io.Writer {
-	return &bytes.Buffer{}
 }
 
 func (m *mockConsoleLogger) GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error) {
 	return make(map[string]string), nil
+}
+
+func (m *mockConsoleLogger) Write(p []byte) (n int, err error) {
+	return len(p), nil
 }
 
 func TestConsoleLoggerWithLevel(t *testing.T) {

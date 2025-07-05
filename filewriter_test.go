@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ternarybob/arbor/filewriter"
+	"github.com/ternarybob/arbor/writers"
 )
 
 func TestFileWriterCustomNaming(t *testing.T) {
@@ -84,7 +84,7 @@ func TestFileWriterCustomNaming(t *testing.T) {
 
 			// Test actual file creation
 			fullPath := filepath.Join(tempDir, expanded)
-			fw, err := filewriter.NewWithPatternAndFormat(fullPath, "", "standard", 100, 5)
+			fw, err := writers.NewFileWriterWithPattern(fullPath, "", "standard", 100, 5)
 			if err != nil {
 				t.Fatalf("Failed to create file writer: %v", err)
 			}
@@ -123,7 +123,7 @@ func TestFileWriterRotation(t *testing.T) {
 	pattern := "test-{YYMMDD}.log"
 
 	// Create file writer with low max files for testing
-	fw, err := filewriter.NewWithPatternAndFormat(
+	fw, err := writers.NewFileWriterWithPattern(
 		filepath.Join(tempDir, pattern),
 		pattern,
 		"standard",
@@ -165,7 +165,7 @@ func TestFileWriterConcurrency(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "concurrent-test.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "json", 200, 5)
+	fw, err := writers.NewFileWriterWithPattern(logFile, "", "json", 200, 5)
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}

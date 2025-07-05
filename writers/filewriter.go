@@ -1,4 +1,4 @@
-package filewriter
+package writers
 
 import (
 	"encoding/json"
@@ -19,11 +19,11 @@ type FileWriter struct {
 	minLevel   log.Level
 }
 
-func NewWithPath(filePath string, bufferSize, maxFiles int) (*FileWriter, error) {
-	return NewWithPathAndLevel(filePath, bufferSize, maxFiles, log.TraceLevel)
+func NewFileWriter(filePath string, bufferSize, maxFiles int) (*FileWriter, error) {
+	return NewFileWriterWithLevel(filePath, bufferSize, maxFiles, log.TraceLevel)
 }
 
-func NewWithPathAndLevel(filePath string, bufferSize, maxFiles int, minLevel log.Level) (*FileWriter, error) {
+func NewFileWriterWithLevel(filePath string, bufferSize, maxFiles int, minLevel log.Level) (*FileWriter, error) {
 	// Create directory if needed
 	dir := filepath.Dir(filePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -59,8 +59,8 @@ func NewWithPathAndLevel(filePath string, bufferSize, maxFiles int, minLevel log
 	return fw, nil
 }
 
-// LogEntry represents a parsed log entry
-type LogEntry struct {
+// FileLogEntry represents a parsed log entry for file writing
+type FileLogEntry struct {
 	Level   string      `json:"level"`
 	Message string      `json:"message"`
 	Time    string      `json:"time,omitempty"`
@@ -98,7 +98,7 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 	}
 
 	// Try to parse as JSON
-	var entry LogEntry
+	var entry FileLogEntry
 	if jsonErr := json.Unmarshal([]byte(input), &entry); jsonErr == nil {
 		// Successfully parsed JSON - log at the specified level
 		level := parseLogLevel(entry.Level)
@@ -150,7 +150,7 @@ func New(file *os.File, bufferSize int) *FileWriter {
 	filePath := file.Name()
 	file.Close()
 
-	fw, err := NewWithPath(filePath, bufferSize, 10) // default 10 max files
+	fw, err := NewFileWriter(filePath, bufferSize, 10) // default 10 max files
 	if err != nil {
 		// fallback to a basic file writer on error
 		return &FileWriter{
@@ -161,13 +161,13 @@ func New(file *os.File, bufferSize int) *FileWriter {
 	return fw
 }
 
-// NewWithPatternAndFormat creates a new FileWriter with custom naming pattern
-func NewWithPatternAndFormat(filePath, pattern, format string, bufferSize, maxFiles int) (*FileWriter, error) {
-	return NewWithPatternFormatAndLevel(filePath, pattern, format, bufferSize, maxFiles, log.TraceLevel)
+// NewFileWriterWithPattern creates a new FileWriter with custom naming pattern
+func NewFileWriterWithPattern(filePath, pattern, format string, bufferSize, maxFiles int) (*FileWriter, error) {
+	return NewFileWriterWithPatternAndLevel(filePath, pattern, format, bufferSize, maxFiles, log.TraceLevel)
 }
 
-// NewWithPatternFormatAndLevel creates a new FileWriter with custom naming pattern and minimum log level
-func NewWithPatternFormatAndLevel(filePath, pattern, format string, bufferSize, maxFiles int, minLevel log.Level) (*FileWriter, error) {
+// NewFileWriterWithPatternAndLevel creates a new FileWriter with custom naming pattern and minimum log level
+func NewFileWriterWithPatternAndLevel(filePath, pattern, format string, bufferSize, maxFiles int, minLevel log.Level) (*FileWriter, error) {
 	// If pattern is provided, expand it to create the actual filename
 	if pattern != "" {
 		dir := filepath.Dir(filePath)
@@ -175,13 +175,40 @@ func NewWithPatternFormatAndLevel(filePath, pattern, format string, bufferSize, 
 		filePath = filepath.Join(dir, baseName)
 	}
 
-	return NewWithPathAndLevel(filePath, bufferSize, maxFiles, minLevel)
+	return NewFileWriterWithLevel(filePath, bufferSize, maxFiles, minLevel)
 }
 
 // SetMinLevel sets the minimum log level for this writer
 func (fw *FileWriter) SetMinLevel(level log.Level) {
 	fw.minLevel = level
 	fw.logger.Level = level
+}
+
+// Flush implements IBufferedWriter interface - forces any buffered data to be written
+func (fw *FileWriter) Flush() error {
+	// phuslu/log doesn't provide explicit flushing, but we can sync the file
+	if fw.fileWriter != nil {
+		return fw.fileWriter.Sync()
+	}
+	return nil
+}
+
+// SetBufferSize implements IBufferedWriter interface - no-op for this implementation
+func (fw *FileWriter) SetBufferSize(size int) error {
+	// This implementation doesn't use configurable buffering
+	return nil
+}
+
+// Rotate implements IRotatableWriter interface - manually triggers log rotation
+func (fw *FileWriter) Rotate() error {
+	// Force a rotation by calling rotateFiles with maxFiles - 1
+	fw.rotateFiles(fw.filePath, fw.maxFiles-1)
+	return nil
+}
+
+// SetMaxFiles implements IRotatableWriter interface - sets the maximum number of files to keep
+func (fw *FileWriter) SetMaxFiles(maxFiles int) {
+	fw.maxFiles = maxFiles
 }
 
 // rotateFiles rotates the log files to ensure no more than maxFiles are kept

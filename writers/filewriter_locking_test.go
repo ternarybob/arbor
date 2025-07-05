@@ -1,4 +1,4 @@
-package filewriter
+package writers
 
 import (
 	"os"
@@ -15,7 +15,7 @@ func TestFileLockingPrevention(t *testing.T) {
 	testFile := filepath.Join(tempDir, "test.log")
 
 	// Create a FileWriter
-	fw, err := NewWithPath(testFile, 10, 5)
+	fw, err := NewFileWriter(testFile, 100, 5)
 	if err != nil {
 		t.Fatalf("Failed to create FileWriter: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestNumberedFileCreation(t *testing.T) {
 	testFile := filepath.Join(tempDir, "locked.log")
 
 	// Create a FileWriter first to establish the primary file
-	fw1, err := NewWithPath(testFile, 10, 5)
+	fw1, err := NewFileWriter(testFile, 100, 5)
 	if err != nil {
 		t.Fatalf("Failed to create first FileWriter: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestNumberedFileCreation(t *testing.T) {
 
 	// Create a second FileWriter that should try to use the same file
 	// This should trigger the numbered file creation mechanism
-	fw2, err := NewWithPath(testFile, 10, 5)
+	fw2, err := NewFileWriter(testFile, 100, 5)
 	if err != nil {
 		t.Fatalf("Failed to create second FileWriter: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestConcurrentWritesToSameFile(t *testing.T) {
 
 	// Create writers
 	for i := 0; i < numWriters; i++ {
-		fw, err := NewWithPath(testFile, 10, 5)
+			fw, err := NewFileWriter(testFile, 100, 5)
 		if err != nil {
 			t.Fatalf("Failed to create FileWriter %d: %v", i, err)
 		}

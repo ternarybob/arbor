@@ -1,4 +1,4 @@
-package filewriter
+package writers
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ func TestFileWriterCreation(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "test.log")
 
-	writer, err := NewWithPatternAndFormat(logFile, "", "standard", 100, 5)
+	writer, err := NewFileWriterWithPattern(logFile, "", "standard", 100, 5)
 	if err != nil {
 		t.Fatalf("Failed to create FileWriter: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestFileWriterWrite(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "test.log")
 
-	writer, err := NewWithPatternAndFormat(logFile, "", "standard", 100, 5)
+	writer, err := NewFileWriterWithPattern(logFile, "", "standard", 100, 5)
 	if err != nil {
 		t.Fatalf("Failed to create FileWriter: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "loglevels-test.log")
 
-	writer, err := NewWithPatternAndFormat(logFile, "", "standard", 100, 5)
+	writer, err := NewFileWriterWithPattern(logFile, "", "standard", 100, 5)
 	if err != nil {
 		t.Fatalf("Failed to create FileWriter: %v", err)
 	}

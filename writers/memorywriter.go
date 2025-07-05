@@ -1,4 +1,4 @@
-package memorywriter
+package writers
 
 import (
 	"encoding/json"
@@ -16,27 +16,12 @@ type MemoryWriter struct {
 	Out io.Writer
 }
 
-type LogEvent struct {
-	Index         uint64    `json:"index"`
-	Level         string    `json:"level"`
-	Timestamp     time.Time `json:"time"`
-	CorrelationID string    `json:"correlationid"`
-	Prefix        string    `json:"prefix"`
-	Message       string    `json:"message"`
-	Error         string    `json:"error"`
-}
-
 const (
 	CORRELATIONID_KEY = "CORRELATIONID"
 	BUFFER_LIMIT      = 1000 // Maximum entries per correlation ID
 )
 
 var (
-	loglevel    log.Level  = log.InfoLevel
-	internallog log.Logger = log.Logger{
-		Level:  loglevel,
-		Writer: &log.ConsoleWriter{},
-	}
 
 	// In-memory storage with mutex for thread safety
 	logStore     = make(map[string][]LogEvent)
@@ -45,7 +30,7 @@ var (
 	counterMux   sync.Mutex
 )
 
-func New() *MemoryWriter {
+func NewMemoryWriter() *MemoryWriter {
 	return &MemoryWriter{
 		Out: os.Stdout,
 	}
@@ -64,6 +49,12 @@ func (w *MemoryWriter) Write(entry []byte) (int, error) {
 	}
 
 	return ep, nil
+}
+
+// Close implements the IWriter interface - no-op for memory writer
+func (w *MemoryWriter) Close() error {
+	// Memory writer doesn't need cleanup
+	return nil
 }
 
 func (w *MemoryWriter) writeline(event []byte) error {
@@ -250,8 +241,9 @@ func formatIndex(index uint64) string {
 	return fmt.Sprintf("%03d", index)
 }
 
+// isEmpty checks if a string is empty or contains only whitespace
 func isEmpty(a string) bool {
-	return len(a) == 0
+	return len(strings.TrimSpace(a)) == 0
 }
 
 // ClearEntries removes log entries for a specific correlation ID

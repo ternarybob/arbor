@@ -1,4 +1,4 @@
-package memorywriter
+package writers
 
 import (
 	"testing"
@@ -6,14 +6,14 @@ import (
 
 func TestMemoryWriterCreation(t *testing.T) {
 	// Test that MemoryWriter can be created without panicking
-	writer := New()
+	writer := NewMemoryWriter()
 	if writer == nil {
 		t.Error("MemoryWriter should not be nil after creation")
 	}
 }
 
 func TestMemoryWriterWrite(t *testing.T) {
-	writer := New()
+	writer := NewMemoryWriter()
 
 	// Use JSON format to reduce parsing errors
 	testData := []byte(`{"level":"info","message":"test memory message"}`)
@@ -32,7 +32,7 @@ func TestMemoryWriterWrite(t *testing.T) {
 }
 
 func TestMemoryWriterGetLogs(t *testing.T) {
-	writer := New()
+	writer := NewMemoryWriter()
 
 	// Write some test data with JSON format to reduce errors
 	testMessages := []string{

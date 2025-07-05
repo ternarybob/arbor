@@ -2,31 +2,31 @@ package arbor
 
 import (
 	"fmt"
-	"github.com/phuslu/log"
 	"strings"
+
+	"github.com/ternarybob/arbor/interfaces"
 )
 
-// Level type for arbor logging levels
-type Level = log.Level
+// Re-export Level type and constants from interfaces package for backward compatibility
+type Level = interfaces.Level
 
-// Level constants that mirror phuslu/log levels
 const (
 	// TraceLevel defines trace log level.
-	TraceLevel Level = log.TraceLevel
+	TraceLevel = interfaces.TraceLevel
 	// DebugLevel defines debug log level.
-	DebugLevel Level = log.DebugLevel
+	DebugLevel = interfaces.DebugLevel
 	// InfoLevel defines info log level.
-	InfoLevel Level = log.InfoLevel
+	InfoLevel = interfaces.InfoLevel
 	// WarnLevel defines warn log level.
-	WarnLevel Level = log.WarnLevel
+	WarnLevel = interfaces.WarnLevel
 	// ErrorLevel defines error log level.
-	ErrorLevel Level = log.ErrorLevel
+	ErrorLevel = interfaces.ErrorLevel
 	// FatalLevel defines fatal log level.
-	FatalLevel Level = log.FatalLevel
+	FatalLevel = interfaces.FatalLevel
 	// PanicLevel defines panic log level.
-	PanicLevel Level = log.PanicLevel
+	PanicLevel = interfaces.PanicLevel
 	// Disabled disables the logger.
-	Disabled Level = log.PanicLevel + 1
+	Disabled = interfaces.Disabled
 )
 
 // ParseLevel converts a level string to a Level value.

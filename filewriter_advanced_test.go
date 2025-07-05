@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ternarybob/arbor/filewriter"
+	"github.com/ternarybob/arbor/writers"
 )
 
 func TestFileWriterWithMalformedJSON(t *testing.T) {
@@ -16,7 +16,7 @@ func TestFileWriterWithMalformedJSON(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "malformed.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 200, 5)
+	fw, err := writers.NewFileWriterWithPattern(logFile, "", "standard", 200, 5)
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestFileWriterLargeMessages(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "large.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 500, 5)
+	fw, err := writers.NewFileWriterWithPattern(logFile, "", "standard", 500, 5)
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestFileWriterUnicodeAndSpecialChars(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "unicode.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 200, 5)
+	fw, err := writers.NewFileWriterWithPattern(logFile, "", "standard", 200, 5)
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestFileWriterHighFrequency(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "highfreq.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 1000, 5) // Large buffer
+	fw, err := writers.NewFileWriterWithPattern(logFile, "", "standard", 1000, 5) // Large buffer
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestFileWriterDifferentLogLevels(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "levels.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 200, 5)
+	fw, err := writers.NewFileWriterWithPattern(logFile, "", "standard", 200, 5)
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestFileWriterJSONCorruption(t *testing.T) {
 	tempDir := t.TempDir()
 	logFile := filepath.Join(tempDir, "corruption.log")
 
-	fw, err := filewriter.NewWithPatternAndFormat(logFile, "", "standard", 200, 5)
+	fw, err := writers.NewFileWriterWithPattern(logFile, "", "standard", 200, 5)
 	if err != nil {
 		t.Fatalf("Failed to create file writer: %v", err)
 	}
@@ -315,7 +315,7 @@ func TestFileWriterEdgeCaseFilenames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logFile := filepath.Join(tempDir, fmt.Sprintf("test-%s.log", tc.name))
 
-			fw, err := filewriter.NewWithPatternAndFormat(logFile, tc.pattern, "standard", 200, 5)
+			fw, err := writers.NewFileWriterWithPattern(logFile, tc.pattern, "standard", 200, 5)
 			if err != nil {
 				t.Fatalf("Failed to create file writer for %s: %v", tc.name, err)
 			}
