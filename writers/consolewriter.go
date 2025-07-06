@@ -3,7 +3,6 @@ package writers
 import (
 	"encoding/json"
 
-	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 	"github.com/ternarybob/arbor/services"
 
@@ -34,7 +33,7 @@ type consoleWriter struct {
 func ConsoleWriter(config models.WriterConfiguration) IWriter {
 	// Use phuslu's default console writer with colors
 	phusluLogger := log.Logger{
-		Level:      log.Level(config.Level),
+		Level:      config.Level.ToLogLevel(),
 		TimeFormat: config.TimeFormat,
 		Writer: &log.ConsoleWriter{
 			ColorOutput:    true,
@@ -50,8 +49,8 @@ func ConsoleWriter(config models.WriterConfiguration) IWriter {
 	return cw
 }
 
-func (cw *consoleWriter) WithLevel(level levels.LogLevel) IWriter {
-	cw.logger.SetLevel(log.Level(level))
+func (cw *consoleWriter) WithLevel(level log.Level) IWriter {
+	cw.logger.SetLevel(level)
 	return cw
 }
 

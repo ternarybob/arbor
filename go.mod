@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.5.4
 	github.com/jinzhu/copier v0.4.0
-	github.com/phuslu/log v1.0.111
+	github.com/phuslu/log v1.0.118
 	go.etcd.io/bbolt v1.4.2
 )
 

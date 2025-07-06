@@ -94,7 +94,7 @@ func (l *logger) WithPrefix(value string) ILogger {
 	return l
 }
 
-func (l *logger) WithLevel(level levels.LogLevel) ILogger {
+func (l *logger) WithLevel(level LogLevel) ILogger {
 
 	internallog.Trace().Msg("Iterating over writers")
 
@@ -104,9 +104,11 @@ func (l *logger) WithLevel(level levels.LogLevel) ILogger {
 		return l
 	}
 
+	lvl := ParseLogLevel(int(level))
+
 	for key, writer := range l.writers {
 		internallog.Trace().Msgf("Key: \"%s\", Writer Type: %T\n", key, writer)
-		writer.WithLevel(level)
+		writer.WithLevel(lvl)
 	}
 
 	return l
@@ -272,7 +274,7 @@ func Panic() ILogEvent {
 	return defaultLogger.Panic()
 }
 
-func (l *logger) GetMemoryLogs(correlationid string, minLevel levels.LogLevel) (map[string]string, error) {
+func (l *logger) GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error) {
 	// Check if memory writer is configured
 	if l.writers == nil {
 		return make(map[string]string), nil
@@ -285,7 +287,7 @@ func (l *logger) GetMemoryLogs(correlationid string, minLevel levels.LogLevel) (
 
 	// Cast to IMemoryWriter and call the method
 	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
-		return mw.GetEntriesWithLevel(correlationid, log.Level(minLevel))
+		return mw.GetEntriesWithLevel(correlationid, minLevel.ToLogLevel())
 	}
 
 	return make(map[string]string), nil

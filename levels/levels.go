@@ -66,3 +66,49 @@ func ParseLogLevel(level int) log.Level {
 		return log.InfoLevel
 	}
 }
+
+// ToLogLevel converts our LogLevel to phuslu log.Level
+func (l LogLevel) ToLogLevel() log.Level {
+	switch l {
+	case TraceLevel:
+		return log.TraceLevel
+	case DebugLevel:
+		return log.DebugLevel
+	case InfoLevel:
+		return log.InfoLevel
+	case WarnLevel:
+		return log.WarnLevel
+	case ErrorLevel:
+		return log.ErrorLevel
+	case FatalLevel:
+		return log.FatalLevel
+	case PanicLevel:
+		return log.PanicLevel
+	case Disabled:
+		return 0
+	default:
+		return log.InfoLevel
+	}
+}
+
+// FromLogLevel converts phuslu log.Level to our LogLevel
+func FromLogLevel(l log.Level) LogLevel {
+	switch l {
+	case log.TraceLevel:
+		return TraceLevel
+	case log.DebugLevel:
+		return DebugLevel
+	case log.InfoLevel:
+		return InfoLevel
+	case log.WarnLevel:
+		return WarnLevel
+	case log.ErrorLevel:
+		return ErrorLevel
+	case log.FatalLevel:
+		return FatalLevel
+	case log.PanicLevel:
+		return PanicLevel
+	default:
+		return InfoLevel
+	}
+}

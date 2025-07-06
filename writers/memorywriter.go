@@ -106,9 +106,9 @@ func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 }
 
 // WithLevel sets the log level for the memory writer (required by IWriter interface)
-func (mw *memoryWriter) WithLevel(level levels.LogLevel) IWriter {
+func (mw *memoryWriter) WithLevel(level log.Level) IWriter {
 	// Update the config level
-	mw.config.Level = level
+	mw.config.Level = levels.FromLogLevel(level)
 	return mw
 }
 

@@ -3,6 +3,7 @@ package writers
 import (
 	"testing"
 
+	"github.com/phuslu/log"
 	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
@@ -33,7 +34,7 @@ func TestConsoleWriter_WithLevel(t *testing.T) {
 	writer := ConsoleWriter(config)
 
 	// Test changing level
-	newWriter := writer.WithLevel(levels.DebugLevel)
+	newWriter := writer.WithLevel(log.DebugLevel)
 	if newWriter == nil {
 		t.Error("WithLevel should not return nil")
 	}

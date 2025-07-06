@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/phuslu/log"
-	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
 
@@ -59,14 +58,14 @@ func TestLogger_WithPrefix(t *testing.T) {
 func TestLogger_WithLevel(t *testing.T) {
 	logger := Logger()
 
-	testLevels := []levels.LogLevel{
-		levels.TraceLevel,
-		levels.DebugLevel,
-		levels.InfoLevel,
-		levels.WarnLevel,
-		levels.ErrorLevel,
-		levels.FatalLevel,
-		levels.PanicLevel,
+	testLevels := []LogLevel{
+		TraceLevel,
+		DebugLevel,
+		InfoLevel,
+		WarnLevel,
+		ErrorLevel,
+		FatalLevel,
+		PanicLevel,
 	}
 
 	for _, level := range testLevels {
@@ -106,7 +105,7 @@ func TestLogger_WithFileWriter(t *testing.T) {
 
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
-		Level:      levels.InfoLevel,
+		Level:      InfoLevel,
 		TimeFormat: "15:04:05.000",
 		FileName:   "test.log",
 	}
@@ -233,7 +232,7 @@ func TestParseLevelString(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
-			result, err := levels.ParseLevelString(tc.input)
+			result, err := ParseLevelString(tc.input)
 
 			if tc.hasError {
 				if err == nil {
@@ -256,20 +255,20 @@ func TestParseLogLevel(t *testing.T) {
 		input    int
 		expected log.Level
 	}{
-		{int(levels.TraceLevel), log.TraceLevel},
-		{int(levels.DebugLevel), log.DebugLevel},
-		{int(levels.InfoLevel), log.InfoLevel},
-		{int(levels.WarnLevel), log.WarnLevel},
-		{int(levels.ErrorLevel), log.ErrorLevel},
-		{int(levels.FatalLevel), log.FatalLevel},
-		{int(levels.PanicLevel), log.PanicLevel},
-		{int(levels.Disabled), 0},
+		{int(TraceLevel), log.TraceLevel},
+		{int(DebugLevel), log.DebugLevel},
+		{int(InfoLevel), log.InfoLevel},
+		{int(WarnLevel), log.WarnLevel},
+		{int(ErrorLevel), log.ErrorLevel},
+		{int(FatalLevel), log.FatalLevel},
+		{int(PanicLevel), log.PanicLevel},
+		{int(Disabled), 0},
 		{999, log.InfoLevel}, // Default case
 	}
 
 	for _, tc := range testCases {
 		t.Run(string(rune(tc.input)), func(t *testing.T) {
-			result := levels.ParseLogLevel(tc.input)
+			result := ParseLogLevel(tc.input)
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}

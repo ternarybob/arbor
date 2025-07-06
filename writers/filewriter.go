@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ternarybob/arbor/common"
-	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 	"github.com/ternarybob/arbor/services"
 
@@ -51,7 +50,7 @@ func FileWriter(config models.WriterConfiguration) IWriter {
 
 	fw := &fileWriter{
 		logger: log.Logger{
-			Level:      log.Level(config.Level),
+			Level:      config.Level.ToLogLevel(),
 			TimeFormat: config.TimeFormat,
 			Writer: &log.FileWriter{
 				Filename:     fileName,
@@ -76,9 +75,9 @@ type FileLogEntry struct {
 	Extra   interface{} `json:"-"`
 }
 
-func (fw *fileWriter) WithLevel(level levels.LogLevel) IWriter {
+func (fw *fileWriter) WithLevel(level log.Level) IWriter {
 
-	fw.logger.SetLevel(log.Level(level))
+	fw.logger.SetLevel(level)
 
 	return fw
 }

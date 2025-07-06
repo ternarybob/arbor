@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/phuslu/log"
 	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
@@ -60,7 +61,7 @@ func TestFileWriter_WithLevel(t *testing.T) {
 	writer := FileWriter(config)
 
 	// Test changing level
-	newWriter := writer.WithLevel(levels.DebugLevel)
+	newWriter := writer.WithLevel(log.DebugLevel)
 	if newWriter == nil {
 		t.Error("WithLevel should not return nil")
 	}
@@ -225,7 +226,7 @@ func TestFileWriter_InterfaceCompliance(t *testing.T) {
 
 	// Test all IWriter interface methods
 	t.Run("WithLevel", func(t *testing.T) {
-		result := writer.WithLevel(levels.DebugLevel)
+		result := writer.WithLevel(log.DebugLevel)
 		if result == nil {
 			t.Error("WithLevel should not return nil")
 		}

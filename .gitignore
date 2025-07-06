@@ -9,6 +9,11 @@ config.toml
 *.so
 *.dylib
 
+# log files
+*.log
+log/
+log/.
+
 # Test binary, built with `go test -c`
 *.test
 
