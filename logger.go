@@ -112,8 +112,8 @@ func (l *logger) WithLevel(level LogLevel) ILogger {
 	internallog.Trace().Msg("Iterating over writers")
 
 	// Ensure writers map exists before iterating
-	if l.writers == nil || len(l.writers) == 0 {
-		internallog.Trace().Msg("No writers configured or writers map is nil.")
+	if len(l.writers) == 0 {
+		internallog.Trace().Msg("No writers configured.")
 		return l
 	}
 
