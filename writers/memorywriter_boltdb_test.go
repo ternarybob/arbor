@@ -25,6 +25,9 @@ func TestBoltDBMemoryWriter_Basic(t *testing.T) {
 func TestBoltDBMemoryWriter_WithLevel(t *testing.T) {
 	config := models.WriterConfiguration{}
 	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
 	defer writer.Close()
 
 	// Test changing level
@@ -42,6 +45,9 @@ func TestBoltDBMemoryWriter_WithLevel(t *testing.T) {
 func TestBoltDBMemoryWriter_WriteAndRetrieve(t *testing.T) {
 	config := models.WriterConfiguration{}
 	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
 	defer writer.Close()
 
 	correlationID := "test-correlation-123"
@@ -86,6 +92,9 @@ func TestBoltDBMemoryWriter_WriteAndRetrieve(t *testing.T) {
 func TestBoltDBMemoryWriter_WriteWithoutCorrelationID(t *testing.T) {
 	config := models.WriterConfiguration{}
 	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
 	defer writer.Close()
 
 	logEvent := models.LogEvent{
@@ -121,6 +130,9 @@ func TestBoltDBMemoryWriter_WriteWithoutCorrelationID(t *testing.T) {
 func TestBoltDBMemoryWriter_MultipleEntries(t *testing.T) {
 	config := models.WriterConfiguration{}
 	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
 	defer writer.Close()
 
 	correlationID := "test-multiple-entries"
@@ -163,6 +175,9 @@ func TestBoltDBMemoryWriter_MultipleEntries(t *testing.T) {
 func TestBoltDBMemoryWriter_LevelFiltering(t *testing.T) {
 	config := models.WriterConfiguration{}
 	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
 	defer writer.Close()
 
 	correlationID := "test-level-filter"
@@ -208,6 +223,9 @@ func TestBoltDBMemoryWriter_LevelFiltering(t *testing.T) {
 func TestBoltDBMemoryWriter_GetStoredCorrelationIDs(t *testing.T) {
 	config := models.WriterConfiguration{}
 	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
 	defer writer.Close()
 
 	// Use unique correlation IDs with timestamp to avoid conflicts
@@ -259,11 +277,15 @@ func TestBoltDBMemoryWriter_Expiration(t *testing.T) {
 	// This test would need to be modified to test with a shorter TTL
 	// For now, we'll just verify that expired entries are filtered out during retrieval
 	config := models.WriterConfiguration{}
-	writer := MemoryWriter(config).(*memoryWriter)
+	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
+	memWriter := writer.(*memoryWriter)
 	defer writer.Close()
 
 	// Reduce TTL for testing
-	writer.ttl = 100 * time.Millisecond
+	memWriter.ttl = 100 * time.Millisecond
 
 	correlationID := "test-expiration"
 
@@ -302,6 +324,9 @@ func TestBoltDBMemoryWriter_Expiration(t *testing.T) {
 func TestBoltDBMemoryWriter_Close(t *testing.T) {
 	config := models.WriterConfiguration{}
 	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
 
 	// Should not error when closing
 	err := writer.Close()

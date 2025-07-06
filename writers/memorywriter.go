@@ -55,7 +55,9 @@ type StoredLogEntry struct {
 
 func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 	tempDir := os.TempDir()
-	dbPath := filepath.Join(tempDir, "arbor_logs.db")
+	// Create unique database file to avoid lock contention
+	timestamp := time.Now().UnixNano()
+	dbPath := filepath.Join(tempDir, fmt.Sprintf("arbor_logs_%d.db", timestamp))
 
 	// Check if we already have this database instance
 	dbMux.RLock()
@@ -65,7 +67,7 @@ func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 	if !exists {
 		// Create new database instance
 		newDB, err := bbolt.Open(dbPath, 0600, &bbolt.Options{
-			Timeout: 1 * time.Second,
+			Timeout: 5 * time.Second,
 		})
 		if err != nil {
 			memoryInternalLog.Error().Err(err).Msg("Failed to open BoltDB")
@@ -394,8 +396,21 @@ func (mw *memoryWriter) Close() error {
 		mw.cleanupStop = nil
 	}
 
-	// Note: We don't close the database here as it might be shared
-	// The database will be closed when the last writer is done
+	// For testing and cleanup, close the database and remove from instances
+	if mw.db != nil {
+		dbMux.Lock()
+		defer dbMux.Unlock()
+
+		// Close database
+		mw.db.Close()
+
+		// Remove from global instances
+		delete(dbInstances, mw.dbPath)
+
+		// Remove the database file for testing
+		os.Remove(mw.dbPath)
+	}
+
 	return nil
 }
 

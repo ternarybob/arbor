@@ -14,6 +14,10 @@ config.toml
 log/
 log/.
 
+# data files
+data/
+data/.
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -30,18 +34,3 @@ vendor/
 # Go workspace file
 go.work
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
