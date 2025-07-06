@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
 
@@ -28,7 +29,7 @@ func TestBoltDBMemoryWriter_WithLevel(t *testing.T) {
 	defer writer.Close()
 
 	// Test changing level
-	newWriter := writer.WithLevel(log.DebugLevel)
+	newWriter := writer.WithLevel(levels.DebugLevel)
 	if newWriter == nil {
 		t.Error("WithLevel should not return nil")
 	}

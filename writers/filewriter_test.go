@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
 
 func TestFileWriter_New(t *testing.T) {
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 		FileName:   "test.log",
 		MaxBackups: 3,
@@ -31,7 +31,7 @@ func TestFileWriter_New(t *testing.T) {
 func TestFileWriter_DefaultValues(t *testing.T) {
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 		// Don't set FileName, MaxBackups, or MaxSize to test defaults
 	}
@@ -52,7 +52,7 @@ func TestFileWriter_DefaultValues(t *testing.T) {
 func TestFileWriter_WithLevel(t *testing.T) {
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 		FileName:   "test.log",
 	}
@@ -60,7 +60,7 @@ func TestFileWriter_WithLevel(t *testing.T) {
 	writer := FileWriter(config)
 
 	// Test changing level
-	newWriter := writer.WithLevel(log.DebugLevel)
+	newWriter := writer.WithLevel(levels.DebugLevel)
 	if newWriter == nil {
 		t.Error("WithLevel should not return nil")
 	}
@@ -81,7 +81,7 @@ func TestFileWriter_Write(t *testing.T) {
 
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 		FileName:   filepath.Join(tempDir, "test.log"),
 		MaxBackups: 3,
@@ -135,7 +135,7 @@ func TestFileWriter_Configuration(t *testing.T) {
 			name: "custom filename",
 			config: models.WriterConfiguration{
 				Type:       models.LogWriterTypeFile,
-				Level:      log.InfoLevel,
+				Level:      levels.InfoLevel,
 				TimeFormat: "15:04:05.000",
 				FileName:   "custom.log",
 				MaxBackups: 5,
@@ -158,7 +158,7 @@ func TestFileWriter_Configuration(t *testing.T) {
 			name: "default values when missing",
 			config: models.WriterConfiguration{
 				Type:       models.LogWriterTypeFile,
-				Level:      log.InfoLevel,
+				Level:      levels.InfoLevel,
 				TimeFormat: "15:04:05.000",
 				// Missing FileName, MaxBackups, MaxSize
 			},
@@ -173,7 +173,7 @@ func TestFileWriter_Configuration(t *testing.T) {
 			name: "zero max backups gets default",
 			config: models.WriterConfiguration{
 				Type:       models.LogWriterTypeFile,
-				Level:      log.InfoLevel,
+				Level:      levels.InfoLevel,
 				TimeFormat: "15:04:05.000",
 				FileName:   "test.log",
 				MaxBackups: 0, // Should get default of 5
@@ -190,7 +190,7 @@ func TestFileWriter_Configuration(t *testing.T) {
 			name: "zero max size gets default",
 			config: models.WriterConfiguration{
 				Type:       models.LogWriterTypeFile,
-				Level:      log.InfoLevel,
+				Level:      levels.InfoLevel,
 				TimeFormat: "15:04:05.000",
 				FileName:   "test.log",
 				MaxBackups: 3,
@@ -216,7 +216,7 @@ func TestFileWriter_Configuration(t *testing.T) {
 func TestFileWriter_InterfaceCompliance(t *testing.T) {
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 		FileName:   "test.log",
 	}
@@ -225,7 +225,7 @@ func TestFileWriter_InterfaceCompliance(t *testing.T) {
 
 	// Test all IWriter interface methods
 	t.Run("WithLevel", func(t *testing.T) {
-		result := writer.WithLevel(log.DebugLevel)
+		result := writer.WithLevel(levels.DebugLevel)
 		if result == nil {
 			t.Error("WithLevel should not return nil")
 		}

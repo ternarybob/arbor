@@ -79,15 +79,19 @@ func (le *logEvent) writeLog(message string) {
 
 	// Write to all configured writers
 	for writerKey, writer := range le.logger.writers {
-		if writerKey == WRITER_MEMORY {
+		if writerKey == WRITER_CONSOLE {
+			// Console writer expects JSON data (phuslu will handle formatting)
+			if jsonData, err := json.Marshal(logEvent); err == nil {
+				writer.Write(jsonData)
+			}
+		} else if writerKey == WRITER_MEMORY {
 			// Memory writers need JSON format
 			if jsonData, err := json.Marshal(logEvent); err == nil {
 				writer.Write(jsonData)
 			}
 		} else {
-			// Other writers get formatted string
+			// File writers get formatted string
 			logEntry := le.formatLogEntry(logEvent)
-			fmt.Print(logEntry)
 			writer.Write([]byte(logEntry))
 		}
 	}

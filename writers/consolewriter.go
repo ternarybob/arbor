@@ -1,8 +1,9 @@
 package writers
 
 import (
-	"fmt"
+	"encoding/json"
 
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 	"github.com/ternarybob/arbor/services"
 
@@ -29,81 +30,89 @@ type consoleWriter struct {
 	ginService services.IGinService // Optional Gin formatting service
 }
 
-// NewConsoleWriter creates a new ConsoleWriter with optional configuration
+// ConsoleWriter creates a new ConsoleWriter with phuslu backend
 func ConsoleWriter(config models.WriterConfiguration) IWriter {
+	// Use phuslu's default console writer with colors
+	phusluLogger := log.Logger{
+		Level:      log.Level(config.Level),
+		TimeFormat: config.TimeFormat,
+		Writer: &log.ConsoleWriter{
+			ColorOutput:    true,
+			EndWithMessage: true,
+		},
+	}
 
 	cw := &consoleWriter{
-		logger: log.Logger{
-			Level:      config.Level,
-			TimeFormat: config.TimeFormat,
-			Writer: &log.ConsoleWriter{
-				ColorOutput:    true,
-				EndWithMessage: true,
-			},
-		},
+		logger: phusluLogger,
 		config: config,
 	}
 
 	return cw
 }
 
-func (cw *consoleWriter) WithLevel(level log.Level) IWriter {
-
-	cw.logger.SetLevel(level)
-
+func (cw *consoleWriter) WithLevel(level levels.LogLevel) IWriter {
+	cw.logger.SetLevel(log.Level(level))
 	return cw
 }
 
-func (cw *consoleWriter) Write(e []byte) (n int, err error) {
-	n = len(e)
+func (cw *consoleWriter) Write(data []byte) (n int, err error) {
+	n = len(data)
 	if n <= 0 {
-		return n, err
+		return n, nil
 	}
+
+	// Parse JSON log event from arbor
+	var logEvent models.LogEvent
+	if err := json.Unmarshal(data, &logEvent); err != nil {
+		// If not JSON, fallback to direct output
+		cw.logger.Info().Msg(string(data))
+		return n, nil
+	}
+
+	// Use phuslu logger with the parsed log event data
+	var phusluEvent *log.Entry
+	switch logEvent.Level {
+	case log.TraceLevel:
+		phusluEvent = cw.logger.Trace()
+	case log.DebugLevel:
+		phusluEvent = cw.logger.Debug()
+	case log.InfoLevel:
+		phusluEvent = cw.logger.Info()
+	case log.WarnLevel:
+		phusluEvent = cw.logger.Warn()
+	case log.ErrorLevel:
+		phusluEvent = cw.logger.Error()
+	case log.FatalLevel:
+		phusluEvent = cw.logger.Fatal()
+	case log.PanicLevel:
+		phusluEvent = cw.logger.Panic()
+	default:
+		phusluEvent = cw.logger.Info()
+	}
+
+	// Add arbor-specific fields to phuslu logger
+	if logEvent.Prefix != "" {
+		phusluEvent = phusluEvent.Str("prefix", logEvent.Prefix)
+	}
+	if logEvent.Function != "" {
+		phusluEvent = phusluEvent.Str("function", logEvent.Function)
+	}
+	if logEvent.CorrelationID != "" {
+		phusluEvent = phusluEvent.Str("correlationid", logEvent.CorrelationID)
+	}
+
+	// Add custom fields from arbor
+	for key, value := range logEvent.Fields {
+		phusluEvent = phusluEvent.Interface(key, value)
+	}
+
+	// Add error if present
+	if logEvent.Error != "" {
+		phusluEvent = phusluEvent.Str("error", logEvent.Error)
+	}
+
+	// Send the message through phuslu (uses phuslu's default console format)
+	phusluEvent.Msg(logEvent.Message)
 
 	return n, nil
-}
-
-func (cw *consoleWriter) format(l *models.LogEvent, colour bool) string {
-
-	timestamp := l.Timestamp.Format("15:04:05.000")
-
-	// Convert log.Level to string for levelprint function
-	levelStr := levelToString(l.Level)
-	output := fmt.Sprintf("%s|%s", levelprint(levelStr, colour), timestamp)
-
-	if l.Prefix != "" {
-		output += fmt.Sprintf("|%s", l.Prefix)
-	}
-
-	if l.Message != "" {
-		output += fmt.Sprintf("|%s", l.Message)
-	}
-
-	if l.Error != "" {
-		output += fmt.Sprintf("|%s", l.Error)
-	}
-
-	return output
-}
-
-// levelToString converts log.Level to string for levelprint function
-func levelToString(level log.Level) string {
-	switch level {
-	case log.TraceLevel:
-		return "trace"
-	case log.DebugLevel:
-		return "debug"
-	case log.InfoLevel:
-		return "info"
-	case log.WarnLevel:
-		return "warn"
-	case log.ErrorLevel:
-		return "error"
-	case log.FatalLevel:
-		return "fatal"
-	case log.PanicLevel:
-		return "panic"
-	default:
-		return "info"
-	}
 }

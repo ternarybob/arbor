@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 	"go.etcd.io/bbolt"
 )
@@ -105,7 +106,7 @@ func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 }
 
 // WithLevel sets the log level for the memory writer (required by IWriter interface)
-func (mw *memoryWriter) WithLevel(level log.Level) IWriter {
+func (mw *memoryWriter) WithLevel(level levels.LogLevel) IWriter {
 	// Update the config level
 	mw.config.Level = level
 	return mw

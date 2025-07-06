@@ -1,8 +1,8 @@
 package writers
 
-import "github.com/phuslu/log"
+import "github.com/ternarybob/arbor/levels"
 
 type IWriter interface {
-	WithLevel(level log.Level) IWriter
+	WithLevel(level levels.LogLevel) IWriter
 	Write(p []byte) (n int, err error)
 }

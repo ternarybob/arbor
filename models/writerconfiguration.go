@@ -3,7 +3,7 @@ package models
 import (
 	"io"
 
-	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/levels"
 )
 
 type LogWriterType string
@@ -15,11 +15,12 @@ const (
 )
 
 type WriterConfiguration struct {
-	Type       LogWriterType `json:"type"`
-	Writer     io.Writer     `json:"-"`
-	Level      log.Level     `json:"level"`
-	TimeFormat string        `json:"timeformat"`
-	FileName   string        `json:"filepath,omitempty"`
-	MaxSize    int64         `json:"buffersize,omitempty"`
-	MaxBackups int           `json:"maxfiles,omitempty"`
+	Type          LogWriterType   `json:"type"`
+	Writer        io.Writer       `json:"-"`
+	Level         levels.LogLevel `json:"level"`
+	TimeFormat    string          `json:"timeformat"`
+	FileName      string          `json:"filepath,omitempty"`
+	LogNameFormat string          `json:"lognameformat,omitempty"`
+	MaxSize       int64           `json:"buffersize,omitempty"`
+	MaxBackups    int             `json:"maxfiles,omitempty"`
 }

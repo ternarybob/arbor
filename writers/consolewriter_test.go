@@ -3,14 +3,14 @@ package writers
 import (
 	"testing"
 
-	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
 
 func TestConsoleWriter_New(t *testing.T) {
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeConsole,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 	}
 
@@ -26,14 +26,14 @@ func TestConsoleWriter_New(t *testing.T) {
 func TestConsoleWriter_WithLevel(t *testing.T) {
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeConsole,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 	}
 
 	writer := ConsoleWriter(config)
 
 	// Test changing level
-	newWriter := writer.WithLevel(log.DebugLevel)
+	newWriter := writer.WithLevel(levels.DebugLevel)
 	if newWriter == nil {
 		t.Error("WithLevel should not return nil")
 	}
@@ -47,7 +47,7 @@ func TestConsoleWriter_WithLevel(t *testing.T) {
 func TestConsoleWriter_Write(t *testing.T) {
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeConsole,
-		Level:      log.InfoLevel,
+		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 	}
 
@@ -85,58 +85,5 @@ func TestConsoleWriter_Write(t *testing.T) {
 				t.Errorf("Expected %d bytes written, got %d", tc.expected, n)
 			}
 		})
-	}
-}
-
-func TestLevelToString(t *testing.T) {
-	testCases := []struct {
-		level    log.Level
-		expected string
-	}{
-		{log.TraceLevel, "trace"},
-		{log.DebugLevel, "debug"},
-		{log.InfoLevel, "info"},
-		{log.WarnLevel, "warn"},
-		{log.ErrorLevel, "error"},
-		{log.FatalLevel, "fatal"},
-		{log.PanicLevel, "panic"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.expected, func(t *testing.T) {
-			result := levelToString(tc.level)
-			if result != tc.expected {
-				t.Errorf("Expected %s, got %s", tc.expected, result)
-			}
-		})
-	}
-}
-
-func TestConsoleWriter_Format(t *testing.T) {
-	config := models.WriterConfiguration{
-		Type:       models.LogWriterTypeConsole,
-		Level:      log.InfoLevel,
-		TimeFormat: "15:04:05.000",
-	}
-
-	cw := ConsoleWriter(config).(*consoleWriter)
-
-	logEvent := &models.LogEvent{
-		Level:   log.InfoLevel,
-		Message: "test message",
-		Prefix:  "TEST",
-		Error:   "test error",
-	}
-
-	// Test with color
-	result := cw.format(logEvent, true)
-	if result == "" {
-		t.Error("Format should not return empty string")
-	}
-
-	// Test without color
-	result = cw.format(logEvent, false)
-	if result == "" {
-		t.Error("Format should not return empty string")
 	}
 }

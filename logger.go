@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/ternarybob/arbor/common"
-	"github.com/ternarybob/arbor/writers"
-
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
+	"github.com/ternarybob/arbor/writers"
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
@@ -25,19 +25,6 @@ const (
 	GIN_LOG_KEY        string = "gin"
 )
 
-// type LogLevel interfaces.LogLevel
-
-// const (
-// 	TraceLevel = common.TraceLevel
-// 	DebugLevel = common.DebugLevel
-// 	InfoLevel  = common.InfoLevel
-// 	WarnLevel  = common.WarnLevel
-// 	ErrorLevel = common.ErrorLevel
-// 	FatalLevel = common.FatalLevel
-// 	PanicLevel = common.PanicLevel
-// 	Disabled   = common.Disabled
-// )
-
 var (
 	internallog log.Logger = log.Logger{
 		Level:  log.WarnLevel,
@@ -46,8 +33,8 @@ var (
 	copieropts           copier.Option              = copier.Option{IgnoreEmpty: true, DeepCopy: false}
 	defaultLoggerOptions models.WriterConfiguration = models.WriterConfiguration{
 		Type:       models.LogWriterTypeConsole,
-		Level:      log.InfoLevel,
-		TimeFormat: "15:04:05.000",
+		Level:      levels.InfoLevel,
+		TimeFormat: "01-02 15:04:05.000",
 	}
 )
 
@@ -107,7 +94,7 @@ func (l *logger) WithPrefix(value string) ILogger {
 	return l
 }
 
-func (l *logger) WithLevel(level LogLevel) ILogger {
+func (l *logger) WithLevel(level levels.LogLevel) ILogger {
 
 	internallog.Trace().Msg("Iterating over writers")
 
@@ -117,11 +104,9 @@ func (l *logger) WithLevel(level LogLevel) ILogger {
 		return l
 	}
 
-	lvl := ParseLogLevel(int(level))
-
 	for key, writer := range l.writers {
 		internallog.Trace().Msgf("Key: \"%s\", Writer Type: %T\n", key, writer)
-		writer.WithLevel(lvl)
+		writer.WithLevel(level)
 	}
 
 	return l
@@ -129,29 +114,24 @@ func (l *logger) WithLevel(level LogLevel) ILogger {
 }
 
 func (l *logger) WithContext(key string, value string) ILogger {
-
 	if common.IsEmpty(key) || common.IsEmpty(value) {
 		internallog.Trace().Msgf("Key or Value empty -> returning")
 		return l
 	}
 
-	internallog.Trace().Msgf("Adding key:value %s:%s", key, value)
-
-	// 1. Check if contextData is nil (not yet created/initialized).
+	// Ensure contextData map is initialized
 	if l.contextData == nil {
 		l.contextData = make(map[string]string)
 		internallog.Trace().Msg("contextData was nil, initialized it.")
 	}
 
-	// 2. Check if the CORRELATION_ID_KEY already exists in contextData.
-	if _, exists := l.contextData[CORRELATION_ID_KEY]; exists {
-		// If it exists, update the value.
+	// Check if the specific 'key' already exists
+	if _, exists := l.contextData[key]; exists {
 		l.contextData[key] = value
-		internallog.Trace().Msgf("Updated existing %s to: %s\n", key, value)
+		internallog.Trace().Msgf("Updated existing context key '%s' to: %s", key, value)
 	} else {
-		// If it does not exist, add the new key-value pair.
 		l.contextData[key] = value
-		internallog.Trace().Msgf("Added new %s with value: %s\n", key, value)
+		internallog.Trace().Msgf("Added new context key '%s' with value: %s", key, value)
 	}
 
 	return l
@@ -292,7 +272,7 @@ func Panic() ILogEvent {
 	return defaultLogger.Panic()
 }
 
-func (l *logger) GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error) {
+func (l *logger) GetMemoryLogs(correlationid string, minLevel levels.LogLevel) (map[string]string, error) {
 	// Check if memory writer is configured
 	if l.writers == nil {
 		return make(map[string]string), nil
@@ -303,12 +283,9 @@ func (l *logger) GetMemoryLogs(correlationid string, minLevel LogLevel) (map[str
 		return make(map[string]string), nil
 	}
 
-	// Convert LogLevel to log.Level
-	logLevel := ParseLogLevel(int(minLevel))
-
 	// Cast to IMemoryWriter and call the method
 	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
-		return mw.GetEntriesWithLevel(correlationid, logLevel)
+		return mw.GetEntriesWithLevel(correlationid, log.Level(minLevel))
 	}
 
 	return make(map[string]string), nil

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
 
@@ -26,7 +27,7 @@ func TestLogger_MemoryWriterIntegration(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Retrieve logs
-	logs, err := logger.GetMemoryLogs(correlationID, LogLevel(log.InfoLevel))
+	logs, err := logger.GetMemoryLogs(correlationID, levels.LogLevel(log.InfoLevel))
 	if err != nil {
 		t.Errorf("GetMemoryLogs should not return error: %v", err)
 	}
@@ -37,7 +38,7 @@ func TestLogger_MemoryWriterIntegration(t *testing.T) {
 	}
 
 	// Test level filtering
-	warnLogs, err := logger.GetMemoryLogs(correlationID, LogLevel(log.WarnLevel))
+	warnLogs, err := logger.GetMemoryLogs(correlationID, levels.LogLevel(log.WarnLevel))
 	if err != nil {
 		t.Errorf("GetMemoryLogs should not return error: %v", err)
 	}
@@ -48,7 +49,7 @@ func TestLogger_MemoryWriterIntegration(t *testing.T) {
 	}
 
 	// Test with non-existent correlation ID
-	emptyLogs, err := logger.GetMemoryLogs("non-existent", LogLevel(log.InfoLevel))
+	emptyLogs, err := logger.GetMemoryLogs("non-existent", levels.LogLevel(log.InfoLevel))
 	if err != nil {
 		t.Errorf("GetMemoryLogs should not return error: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestLogger_WithoutMemoryWriter(t *testing.T) {
 	logger := Logger()
 
 	// Try to get memory logs
-	logs, err := logger.GetMemoryLogs("test", LogLevel(log.InfoLevel))
+	logs, err := logger.GetMemoryLogs("test", levels.LogLevel(log.InfoLevel))
 	if err != nil {
 		t.Errorf("GetMemoryLogs should not return error: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestLogger_MemoryWriterExpiration(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Verify entry exists
-	logs, err := logger.GetMemoryLogs(correlationID, LogLevel(log.InfoLevel))
+	logs, err := logger.GetMemoryLogs(correlationID, levels.LogLevel(log.InfoLevel))
 	if err != nil {
 		t.Errorf("GetMemoryLogs should not return error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package arbor
 
 import (
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
 
@@ -11,7 +12,7 @@ type ILogger interface {
 
 	WithCorrelationId(value string) ILogger
 
-	WithLevel(lvl LogLevel) ILogger
+	WithLevel(lvl levels.LogLevel) ILogger
 
 	WithContext(key string, value string) ILogger
 
@@ -28,5 +29,5 @@ type ILogger interface {
 	Fatal() ILogEvent
 	Panic() ILogEvent
 
-	GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error)
+	GetMemoryLogs(correlationid string, minLevel levels.LogLevel) (map[string]string, error)
 }

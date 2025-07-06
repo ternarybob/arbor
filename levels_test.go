@@ -4,28 +4,29 @@ import (
 	"testing"
 
 	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/levels"
 )
 
 func TestLogLevel_Constants(t *testing.T) {
 	// Test that our constants match phuslu/log constants
 	testCases := []struct {
-		arborLevel  LogLevel
+		arborLevel  levels.LogLevel
 		phusluLevel log.Level
 		name        string
 	}{
-		{TraceLevel, log.TraceLevel, "Trace"},
-		{DebugLevel, log.DebugLevel, "Debug"},
-		{InfoLevel, log.InfoLevel, "Info"},
-		{WarnLevel, log.WarnLevel, "Warn"},
-		{ErrorLevel, log.ErrorLevel, "Error"},
-		{FatalLevel, log.FatalLevel, "Fatal"},
-		{PanicLevel, log.PanicLevel, "Panic"},
-		{Disabled, 0, "Disabled"},
+		{levels.TraceLevel, log.TraceLevel, "Trace"},
+		{levels.DebugLevel, log.DebugLevel, "Debug"},
+		{levels.InfoLevel, log.InfoLevel, "Info"},
+		{levels.WarnLevel, log.WarnLevel, "Warn"},
+		{levels.ErrorLevel, log.ErrorLevel, "Error"},
+		{levels.FatalLevel, log.FatalLevel, "Fatal"},
+		{levels.PanicLevel, log.PanicLevel, "Panic"},
+		{levels.Disabled, 0, "Disabled"},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if LogLevel(tc.phusluLevel) != tc.arborLevel {
+			if levels.LogLevel(tc.phusluLevel) != tc.arborLevel {
 				t.Errorf("Expected %s level %d, got %d", tc.name, tc.phusluLevel, tc.arborLevel)
 			}
 		})
@@ -71,7 +72,7 @@ func TestParseLevelString_AllCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
-			result, err := ParseLevelString(tc.input)
+			result, err := levels.ParseLevelString(tc.input)
 
 			if tc.expectError {
 				if err == nil {
@@ -99,14 +100,14 @@ func TestParseLogLevel_AllCases(t *testing.T) {
 		expected log.Level
 		name     string
 	}{
-		{int(TraceLevel), log.TraceLevel, "Trace"},
-		{int(DebugLevel), log.DebugLevel, "Debug"},
-		{int(InfoLevel), log.InfoLevel, "Info"},
-		{int(WarnLevel), log.WarnLevel, "Warn"},
-		{int(ErrorLevel), log.ErrorLevel, "Error"},
-		{int(FatalLevel), log.FatalLevel, "Fatal"},
-		{int(PanicLevel), log.PanicLevel, "Panic"},
-		{int(Disabled), 0, "Disabled"},
+		{int(levels.TraceLevel), log.TraceLevel, "Trace"},
+		{int(levels.DebugLevel), log.DebugLevel, "Debug"},
+		{int(levels.InfoLevel), log.InfoLevel, "Info"},
+		{int(levels.WarnLevel), log.WarnLevel, "Warn"},
+		{int(levels.ErrorLevel), log.ErrorLevel, "Error"},
+		{int(levels.FatalLevel), log.FatalLevel, "Fatal"},
+		{int(levels.PanicLevel), log.PanicLevel, "Panic"},
+		{int(levels.Disabled), 0, "Disabled"},
 
 		// Edge cases
 		{-1, log.InfoLevel, "Negative"},
@@ -117,7 +118,7 @@ func TestParseLogLevel_AllCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := ParseLogLevel(tc.input)
+			result := levels.ParseLogLevel(tc.input)
 			if result != tc.expected {
 				t.Errorf("Expected level %v for input %d, got %v", tc.expected, tc.input, result)
 			}
@@ -127,7 +128,7 @@ func TestParseLogLevel_AllCases(t *testing.T) {
 
 func TestLogLevel_TypeDefinition(t *testing.T) {
 	// Test that LogLevel is properly defined as uint32
-	var level LogLevel = InfoLevel
+	var level levels.LogLevel = levels.InfoLevel
 
 	// Should be able to convert to int
 	intLevel := int(level)
@@ -136,7 +137,7 @@ func TestLogLevel_TypeDefinition(t *testing.T) {
 	}
 
 	// Should be able to convert back
-	backToLevel := LogLevel(intLevel)
+	backToLevel := levels.LogLevel(intLevel)
 	if backToLevel != level {
 		t.Errorf("Expected round-trip conversion to work, got %v", backToLevel)
 	}
@@ -144,27 +145,27 @@ func TestLogLevel_TypeDefinition(t *testing.T) {
 
 func TestLogLevel_Comparison(t *testing.T) {
 	// Test that log levels can be compared properly
-	if TraceLevel >= DebugLevel {
+	if levels.TraceLevel >= levels.DebugLevel {
 		t.Error("TraceLevel should be less than DebugLevel")
 	}
 
-	if DebugLevel >= InfoLevel {
+	if levels.DebugLevel >= levels.InfoLevel {
 		t.Error("DebugLevel should be less than InfoLevel")
 	}
 
-	if InfoLevel >= WarnLevel {
+	if levels.InfoLevel >= levels.WarnLevel {
 		t.Error("InfoLevel should be less than WarnLevel")
 	}
 
-	if WarnLevel >= ErrorLevel {
+	if levels.WarnLevel >= levels.ErrorLevel {
 		t.Error("WarnLevel should be less than ErrorLevel")
 	}
 
-	if ErrorLevel >= FatalLevel {
+	if levels.ErrorLevel >= levels.FatalLevel {
 		t.Error("ErrorLevel should be less than FatalLevel")
 	}
 
-	if FatalLevel >= PanicLevel {
+	if levels.FatalLevel >= levels.PanicLevel {
 		t.Error("FatalLevel should be less than PanicLevel")
 	}
 }
@@ -175,7 +176,7 @@ func TestParseLevelString_CaseSensitivity(t *testing.T) {
 
 	for _, input := range inputs {
 		t.Run(input, func(t *testing.T) {
-			result, err := ParseLevelString(input)
+			result, err := levels.ParseLevelString(input)
 			if err != nil {
 				t.Errorf("Should not error for input '%s': %v", input, err)
 			}
@@ -203,7 +204,7 @@ func TestParseLevelString_EdgeCases(t *testing.T) {
 
 	for _, tc := range edgeCases {
 		t.Run(tc.description, func(t *testing.T) {
-			_, err := ParseLevelString(tc.input)
+			_, err := levels.ParseLevelString(tc.input)
 			if tc.expectError && err == nil {
 				t.Errorf("Expected error for %s", tc.description)
 			}
@@ -220,7 +221,7 @@ func TestLogLevel_DefaultBehavior(t *testing.T) {
 
 	for _, input := range unknownInputs {
 		t.Run(string(rune(input)), func(t *testing.T) {
-			result := ParseLogLevel(input)
+			result := levels.ParseLogLevel(input)
 			if result != log.InfoLevel {
 				t.Errorf("Expected default InfoLevel for unknown input %d, got %v", input, result)
 			}
