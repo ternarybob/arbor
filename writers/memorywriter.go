@@ -3,71 +3,130 @@ package writers
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/phuslu/log"
 	"github.com/ternarybob/arbor/models"
+	"go.etcd.io/bbolt"
 )
-
-type MemoryWriter struct {
-	Out io.Writer
-}
 
 const (
 	CORRELATIONID_KEY = "CORRELATIONID"
-	BUFFER_LIMIT      = 1000 // Maximum entries per correlation ID
+	BUFFER_LIMIT      = 1000           // Maximum entries per correlation ID
+	DEFAULT_TTL       = 24 * time.Hour // Default expiration time
+	CLEANUP_INTERVAL  = 1 * time.Hour  // How often to clean up expired entries
+	LOG_BUCKET        = "logs"         // BoltDB bucket name
 )
 
 var (
-	// In-memory storage with mutex for thread safety
-	logStore     = make(map[string][]models.LogEvent)
-	storeMux     sync.RWMutex
+	// Global state for shared access
 	indexCounter uint64 = 0
 	counterMux   sync.Mutex
+	cleanupMux   sync.Mutex
+	dbInstances  map[string]*bbolt.DB = make(map[string]*bbolt.DB)
+	dbMux        sync.RWMutex
+
+	// Internal logger for debugging
+	memoryLogLevel    log.Level  = log.WarnLevel
+	memoryInternalLog log.Logger = log.Logger{
+		Level:  memoryLogLevel,
+		Writer: &log.ConsoleWriter{},
+	}
 )
 
-func NewMemoryWriter() *MemoryWriter {
-	return &MemoryWriter{
-		Out: os.Stdout,
-	}
+type memoryWriter struct {
+	config        models.WriterConfiguration
+	db            *bbolt.DB
+	dbPath        string
+	ttl           time.Duration
+	cleanupTicker *time.Ticker
+	cleanupStop   chan bool
 }
 
-func (w *MemoryWriter) Write(entry []byte) (int, error) {
+type StoredLogEntry struct {
+	LogEvent  models.LogEvent `json:"log_event"`
+	ExpiresAt time.Time       `json:"expires_at"`
+}
+
+func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
+	tempDir := os.TempDir()
+	dbPath := filepath.Join(tempDir, "arbor_logs.db")
+
+	// Check if we already have this database instance
+	dbMux.RLock()
+	db, exists := dbInstances[dbPath]
+	dbMux.RUnlock()
+
+	if !exists {
+		// Create new database instance
+		newDB, err := bbolt.Open(dbPath, 0600, &bbolt.Options{
+			Timeout: 1 * time.Second,
+		})
+		if err != nil {
+			memoryInternalLog.Error().Err(err).Msg("Failed to open BoltDB")
+			return nil
+		}
+
+		// Create bucket if it doesn't exist
+		err = newDB.Update(func(tx *bbolt.Tx) error {
+			_, err := tx.CreateBucketIfNotExists([]byte(LOG_BUCKET))
+			return err
+		})
+		if err != nil {
+			memoryInternalLog.Error().Err(err).Msg("Failed to create bucket")
+			newDB.Close()
+			return nil
+		}
+
+		// Store in global instances
+		dbMux.Lock()
+		dbInstances[dbPath] = newDB
+		dbMux.Unlock()
+
+		db = newDB
+	}
+
+	mw := &memoryWriter{
+		config:      config,
+		db:          db,
+		dbPath:      dbPath,
+		ttl:         DEFAULT_TTL,
+		cleanupStop: make(chan bool),
+	}
+
+	// Start cleanup routine
+	mw.startCleanup()
+
+	return mw
+}
+
+// WithLevel sets the log level for the memory writer (required by IWriter interface)
+func (mw *memoryWriter) WithLevel(level log.Level) IWriter {
+	// Update the config level
+	mw.config.Level = level
+	return mw
+}
+
+func (mw *memoryWriter) Write(entry []byte) (int, error) {
 	ep := len(entry)
 
 	if ep == 0 {
 		return ep, nil
 	}
 
-	err := w.writeline(entry)
+	err := mw.writeline(entry)
 	if err != nil {
-		internallog.Warn().Str("prefix", "Write").Err(err).Msg("")
+		memoryInternalLog.Warn().Str("prefix", "Write").Err(err).Msg("")
 	}
 
 	return ep, nil
 }
 
-// WithLevel implements the IWriter interface
-func (w *MemoryWriter) WithLevel(level log.Level) IWriter {
-	// Memory writer doesn't filter by level, just returns itself
-	return w
-}
-
-// Close implements the IWriter interface - no-op for memory writer
-func (w *MemoryWriter) Close() error {
-	// Memory writer doesn't need cleanup
-	return nil
-}
-
-func (w *MemoryWriter) writeline(event []byte) error {
-	var (
-	// Use direct logging instead of stored logger
-	)
-
+func (mw *memoryWriter) writeline(event []byte) error {
 	if len(event) <= 0 {
 		return nil // Don't error on empty events
 	}
@@ -75,12 +134,12 @@ func (w *MemoryWriter) writeline(event []byte) error {
 	var logentry models.LogEvent
 
 	if err := json.Unmarshal(event, &logentry); err != nil {
-		internallog.Warn().Str("prefix", "writeline").Err(err).Msgf("Error:%s Event:%s", err.Error(), string(event))
+		memoryInternalLog.Warn().Str("prefix", "writeline").Err(err).Msgf("Error:%s Event:%s", err.Error(), string(event))
 		return err
 	}
 
 	if isEmpty(logentry.CorrelationID) {
-		internallog.Debug().Str("prefix", "writeline").Msgf("CorrelationID is empty -> no write to memory store")
+		memoryInternalLog.Debug().Str("prefix", "writeline").Msgf("CorrelationID is empty -> no write to memory store")
 		return nil
 	}
 
@@ -90,99 +149,139 @@ func (w *MemoryWriter) writeline(event []byte) error {
 	logentry.Index = indexCounter
 	counterMux.Unlock()
 
-	// Store in memory
-	storeMux.Lock()
-	defer storeMux.Unlock()
-
-	if _, exists := logStore[logentry.CorrelationID]; !exists {
-		logStore[logentry.CorrelationID] = make([]models.LogEvent, 0, BUFFER_LIMIT)
+	// Create stored entry with expiration
+	storedEntry := StoredLogEntry{
+		LogEvent:  logentry,
+		ExpiresAt: time.Now().Add(mw.ttl),
 	}
 
-	// Add to store with buffer limit
-	entries := logStore[logentry.CorrelationID]
-	if len(entries) >= BUFFER_LIMIT {
-		// Remove oldest entry (FIFO)
-		entries = entries[1:]
-	}
-	entries = append(entries, logentry)
-	logStore[logentry.CorrelationID] = entries
+	// Store in BoltDB
+	return mw.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(LOG_BUCKET))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", LOG_BUCKET)
+		}
 
-	internallog.Trace().Str("prefix", "writeline").Msgf("CorrelationID:%s -> message:%s (total entries: %d)",
-		logentry.CorrelationID, logentry.Message, len(entries))
+		// Create key using correlation ID and index
+		key := fmt.Sprintf("%s:%010d", logentry.CorrelationID, logentry.Index)
 
-	return nil
+		// Serialize the stored entry
+		data, err := json.Marshal(storedEntry)
+		if err != nil {
+			return err
+		}
+
+		// Store in BoltDB
+		err = bucket.Put([]byte(key), data)
+		if err != nil {
+			return err
+		}
+
+		memoryInternalLog.Trace().Str("prefix", "writeline").Msgf("CorrelationID:%s -> message:%s (key: %s)",
+			logentry.CorrelationID, logentry.Message, key)
+
+		return nil
+	})
 }
 
-func GetEntries(correlationid string) (map[string]string, error) {
-	var (
-		// Use direct logging instead of stored logger
-		entries map[string]string = make(map[string]string)
-	)
+func (mw *memoryWriter) GetEntries(correlationid string) (map[string]string, error) {
+	entries := make(map[string]string)
 
 	if correlationid == "" {
 		return entries, nil // Return empty instead of error
 	}
 
-	internallog.Debug().Str("prefix", "GetEntries").Msgf("Getting log entries correlationid:%s", correlationid)
+	memoryInternalLog.Debug().Str("prefix", "GetEntries").Msgf("Getting log entries correlationid:%s", correlationid)
 
-	storeMux.RLock()
-	defer storeMux.RUnlock()
+	err := mw.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(LOG_BUCKET))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", LOG_BUCKET)
+		}
 
-	logEvents, exists := logStore[correlationid]
-	if !exists || len(logEvents) == 0 {
-		internallog.Debug().Str("prefix", "GetEntries").Msgf("No log entries found for correlationid:%s", correlationid)
-		return entries, nil
+		// Iterate through all keys with the correlation ID prefix
+		prefix := []byte(correlationid + ":")
+		c := bucket.Cursor()
+
+		for k, v := c.Seek(prefix); k != nil && strings.HasPrefix(string(k), string(prefix)); k, v = c.Next() {
+			var storedEntry StoredLogEntry
+			if err := json.Unmarshal(v, &storedEntry); err != nil {
+				memoryInternalLog.Warn().Str("prefix", "GetEntries").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				continue
+			}
+
+			// Check if entry is expired
+			if time.Now().After(storedEntry.ExpiresAt) {
+				memoryInternalLog.Debug().Str("prefix", "GetEntries").Msgf("Entry expired for key %s", string(k))
+				continue
+			}
+
+			index := formatIndex(storedEntry.LogEvent.Index)
+			entries[index] = formatLogEvent(&storedEntry.LogEvent)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		memoryInternalLog.Error().Str("prefix", "GetEntries").Err(err).Msgf("Error retrieving entries for correlationid:%s", correlationid)
+		return entries, err
 	}
 
-	internallog.Debug().Str("prefix", "GetEntries").Msgf("Found %d entries for correlationid:%s", len(logEvents), correlationid)
-
-	// Convert to formatted strings
-	for _, logEvent := range logEvents {
-		index := formatIndex(logEvent.Index)
-		entries[index] = formatLogEvent(&logEvent)
-	}
-
+	memoryInternalLog.Debug().Str("prefix", "GetEntries").Msgf("Found %d entries for correlationid:%s", len(entries), correlationid)
 	return entries, nil
 }
 
 // GetEntriesWithLevel returns log entries filtered by minimum log level
-func GetEntriesWithLevel(correlationid string, minLevel log.Level) (map[string]string, error) {
-	var (
-		// Use direct logging instead of stored logger
-		entries map[string]string = make(map[string]string)
-	)
+func (mw *memoryWriter) GetEntriesWithLevel(correlationid string, minLevel log.Level) (map[string]string, error) {
+	entries := make(map[string]string)
 
 	if correlationid == "" {
 		return entries, nil // Return empty instead of error
 	}
 
-	internallog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Getting log entries correlationid:%s minLevel:%s", correlationid, minLevel.String())
+	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Getting log entries correlationid:%s minLevel:%s", correlationid, minLevel.String())
 
-	storeMux.RLock()
-	defer storeMux.RUnlock()
-
-	logEvents, exists := logStore[correlationid]
-	if !exists || len(logEvents) == 0 {
-		internallog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("No log entries found for correlationid:%s", correlationid)
-		return entries, nil
-	}
-
-	internallog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Found %d entries for correlationid:%s", len(logEvents), correlationid)
-
-	// Convert to formatted strings, filtering by level
-	for _, logEvent := range logEvents {
-		// The logEvent.Level is now already a log.Level type
-		eventLevel := logEvent.Level
-
-		// Only include entries at or above the minimum level
-		// Note: Lower numeric values = higher priority (error=3, warn=2, info=1, debug=0, trace=-1)
-		if eventLevel >= minLevel {
-			index := formatIndex(logEvent.Index)
-			entries[index] = formatLogEvent(&logEvent)
+	err := mw.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(LOG_BUCKET))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", LOG_BUCKET)
 		}
+
+		// Iterate through all keys with the correlation ID prefix
+		prefix := []byte(correlationid + ":")
+		c := bucket.Cursor()
+
+		for k, v := c.Seek(prefix); k != nil && strings.HasPrefix(string(k), string(prefix)); k, v = c.Next() {
+			var storedEntry StoredLogEntry
+			if err := json.Unmarshal(v, &storedEntry); err != nil {
+				memoryInternalLog.Warn().Str("prefix", "GetEntriesWithLevel").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				continue
+			}
+
+			// Check if entry is expired
+			if time.Now().After(storedEntry.ExpiresAt) {
+				memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Entry expired for key %s", string(k))
+				continue
+			}
+
+			// Filter by level
+			eventLevel := storedEntry.LogEvent.Level
+			if eventLevel >= minLevel {
+				index := formatIndex(storedEntry.LogEvent.Index)
+				entries[index] = formatLogEvent(&storedEntry.LogEvent)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		memoryInternalLog.Error().Str("prefix", "GetEntriesWithLevel").Err(err).Msgf("Error retrieving entries for correlationid:%s", correlationid)
+		return entries, err
 	}
 
-	internallog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Returning %d filtered entries (minLevel:%s)", len(entries), minLevel.String())
+	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Returning %d filtered entries (minLevel:%s)", len(entries), minLevel.String())
 	return entries, nil
 }
 
@@ -237,34 +336,136 @@ func isEmpty(a string) bool {
 	return len(strings.TrimSpace(a)) == 0
 }
 
-// ClearEntries removes log entries for a specific correlation ID
-func ClearEntries(correlationid string) {
-	if correlationid == "" {
-		return
-	}
-
-	storeMux.Lock()
-	defer storeMux.Unlock()
-
-	delete(logStore, correlationid)
-}
-
-// ClearAllEntries removes all stored log entries (useful for cleanup)
-func ClearAllEntries() {
-	storeMux.Lock()
-	defer storeMux.Unlock()
-
-	logStore = make(map[string][]models.LogEvent)
-}
-
 // GetStoredCorrelationIDs returns all correlation IDs that have stored logs
-func GetStoredCorrelationIDs() []string {
-	storeMux.RLock()
-	defer storeMux.RUnlock()
+func (mw *memoryWriter) GetStoredCorrelationIDs() []string {
+	var ids []string
+	idMap := make(map[string]bool)
 
-	ids := make([]string, 0, len(logStore))
-	for id := range logStore {
-		ids = append(ids, id)
-	}
+	mw.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(LOG_BUCKET))
+		if bucket == nil {
+			return nil
+		}
+
+		c := bucket.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var storedEntry StoredLogEntry
+			if err := json.Unmarshal(v, &storedEntry); err != nil {
+				continue
+			}
+
+			// Check if entry is expired
+			if time.Now().After(storedEntry.ExpiresAt) {
+				continue
+			}
+
+			// Extract correlation ID from key (format: "correlationid:index")
+			key := string(k)
+			if colonIndex := strings.Index(key, ":"); colonIndex > 0 {
+				correlationID := key[:colonIndex]
+				if !idMap[correlationID] {
+					idMap[correlationID] = true
+					ids = append(ids, correlationID)
+				}
+			}
+		}
+
+		return nil
+	})
+
 	return ids
+}
+
+// Close closes the memory writer and any underlying resources
+func (mw *memoryWriter) Close() error {
+	// Stop cleanup routine
+	if mw.cleanupTicker != nil {
+		mw.cleanupTicker.Stop()
+		mw.cleanupTicker = nil
+	}
+	if mw.cleanupStop != nil {
+		select {
+		case <-mw.cleanupStop:
+			// Channel already closed
+		default:
+			close(mw.cleanupStop)
+		}
+		mw.cleanupStop = nil
+	}
+
+	// Note: We don't close the database here as it might be shared
+	// The database will be closed when the last writer is done
+	return nil
+}
+
+// startCleanup starts the automatic cleanup routine
+func (mw *memoryWriter) startCleanup() {
+	mw.cleanupTicker = time.NewTicker(CLEANUP_INTERVAL)
+	cleanupTicker := mw.cleanupTicker
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				memoryInternalLog.Debug().Str("prefix", "cleanup").Msgf("Cleanup goroutine exited: %v", r)
+			}
+		}()
+		for {
+			select {
+			case <-cleanupTicker.C:
+				mw.cleanupExpiredEntries()
+			case <-mw.cleanupStop:
+				return
+			}
+		}
+	}()
+}
+
+// cleanupExpiredEntries removes expired log entries from BoltDB
+func (mw *memoryWriter) cleanupExpiredEntries() {
+	cleanupMux.Lock()
+	defer cleanupMux.Unlock()
+
+	now := time.Now()
+	var keysToDelete [][]byte
+
+	// First pass: identify expired keys
+	mw.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(LOG_BUCKET))
+		if bucket == nil {
+			return nil
+		}
+
+		c := bucket.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var storedEntry StoredLogEntry
+			if err := json.Unmarshal(v, &storedEntry); err != nil {
+				// If we can't unmarshal, consider it corrupted and mark for deletion
+				keysToDelete = append(keysToDelete, append([]byte(nil), k...))
+				continue
+			}
+
+			if now.After(storedEntry.ExpiresAt) {
+				keysToDelete = append(keysToDelete, append([]byte(nil), k...))
+			}
+		}
+
+		return nil
+	})
+
+	// Second pass: delete expired keys
+	if len(keysToDelete) > 0 {
+		mw.db.Update(func(tx *bbolt.Tx) error {
+			bucket := tx.Bucket([]byte(LOG_BUCKET))
+			if bucket == nil {
+				return nil
+			}
+
+			for _, key := range keysToDelete {
+				bucket.Delete(key)
+			}
+
+			return nil
+		})
+
+		memoryInternalLog.Debug().Str("prefix", "cleanup").Msgf("Cleaned up %d expired entries", len(keysToDelete))
+	}
 }

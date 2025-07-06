@@ -17,6 +17,8 @@ type ILogger interface {
 
 	WithFileWriter(config models.WriterConfiguration) ILogger
 
+	WithMemoryWriter(config models.WriterConfiguration) ILogger
+
 	// Fluent logging methods
 	Trace() ILogEvent
 	Debug() ILogEvent
@@ -26,6 +28,5 @@ type ILogger interface {
 	Fatal() ILogEvent
 	Panic() ILogEvent
 
-	// GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error)
-
+	GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error)
 }

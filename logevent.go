@@ -1,6 +1,7 @@
 package arbor
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -77,11 +78,18 @@ func (le *logEvent) writeLog(message string) {
 	logEvent.Function = le.logger.getFunctionName()
 
 	// Write to all configured writers
-	for _, writer := range le.logger.writers {
-		// Format the log entry
-		logEntry := le.formatLogEntry(logEvent)
-		fmt.Print(logEntry)
-		writer.Write([]byte(logEntry))
+	for writerKey, writer := range le.logger.writers {
+		if writerKey == WRITER_MEMORY {
+			// Memory writers need JSON format
+			if jsonData, err := json.Marshal(logEvent); err == nil {
+				writer.Write(jsonData)
+			}
+		} else {
+			// Other writers get formatted string
+			logEntry := le.formatLogEntry(logEvent)
+			fmt.Print(logEntry)
+			writer.Write([]byte(logEntry))
+		}
 	}
 }
 

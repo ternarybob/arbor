@@ -165,8 +165,23 @@ func (l *logger) WithFileWriter(configuration models.WriterConfiguration) ILogge
 		internallog.Trace().Msg("writers was nil, initialized it.")
 	}
 
-	// Add Console Writer
+	// Add File Writer
 	l.writers[WRITER_FILE] = writers.FileWriter(configuration)
+
+	return l
+
+}
+
+func (l *logger) WithMemoryWriter(configuration models.WriterConfiguration) ILogger {
+
+	// 1. Check if writers is nil (not yet created/initialized).
+	if l.writers == nil {
+		l.writers = make(map[string]writers.IWriter)
+		internallog.Trace().Msg("writers was nil, initialized it.")
+	}
+
+	// Add Memory Writer
+	l.writers[WRITER_MEMORY] = writers.MemoryWriter(configuration)
 
 	return l
 
@@ -277,6 +292,24 @@ func Panic() ILogEvent {
 	return defaultLogger.Panic()
 }
 
-// func (d *logger) GetMemoryLogs(correlationid string, minLevel Level) (map[string]string, error) {
-// 	return writers.GetEntriesWithLevel(correlationid, minLevel)
-// }
+func (l *logger) GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error) {
+	// Check if memory writer is configured
+	if l.writers == nil {
+		return make(map[string]string), nil
+	}
+
+	memoryWriter, hasMemoryWriter := l.writers[WRITER_MEMORY]
+	if !hasMemoryWriter {
+		return make(map[string]string), nil
+	}
+
+	// Convert LogLevel to log.Level
+	logLevel := ParseLogLevel(int(minLevel))
+
+	// Cast to IMemoryWriter and call the method
+	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
+		return mw.GetEntriesWithLevel(correlationid, logLevel)
+	}
+
+	return make(map[string]string), nil
+}
