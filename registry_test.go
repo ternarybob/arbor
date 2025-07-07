@@ -79,7 +79,7 @@ func TestMemoryWriterRegistry(t *testing.T) {
 func TestLoggerWithRegisteredWriters(t *testing.T) {
 	// Create a logger and register a memory writer
 	logger := Logger()
-	
+
 	memoryConfig := models.WriterConfiguration{
 		Type:       models.LogWriterTypeMemory,
 		TimeFormat: "01-02 15:04:05.000",

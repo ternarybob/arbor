@@ -47,7 +47,7 @@ func (wr *WriterRegistry) GetRegisteredWriter(name string) writers.IWriter {
 func (wr *WriterRegistry) GetRegisteredMemoryWriter(name string) writers.IMemoryWriter {
 	wr.mu.RLock()
 	defer wr.mu.RUnlock()
-	
+
 	writer := wr.writers[name]
 	if memWriter, ok := writer.(writers.IMemoryWriter); ok {
 		return memWriter
@@ -59,7 +59,7 @@ func (wr *WriterRegistry) GetRegisteredMemoryWriter(name string) writers.IMemory
 func (wr *WriterRegistry) GetRegisteredWriterNames() []string {
 	wr.mu.RLock()
 	defer wr.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(wr.writers))
 	for name := range wr.writers {
 		names = append(names, name)
@@ -85,7 +85,7 @@ func (wr *WriterRegistry) GetWriterCount() int {
 func (wr *WriterRegistry) GetAllRegisteredWriters() map[string]writers.IWriter {
 	wr.mu.RLock()
 	defer wr.mu.RUnlock()
-	
+
 	writersCopy := make(map[string]writers.IWriter)
 	for name, writer := range wr.writers {
 		writersCopy[name] = writer
