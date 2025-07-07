@@ -19,17 +19,10 @@ const (
 	LEVEL_KEY          string = "level"
 	CORRELATION_ID_KEY string = "correlationid"
 	PREFIX_KEY         string = "prefix"
-	WRITER_CONSOLE     string = "writerconsole"
-	WRITER_FILE        string = "writerfile"
-	WRITER_MEMORY      string = "writermemory"
 	GIN_LOG_KEY        string = "gin"
 )
 
 var (
-	internallog log.Logger = log.Logger{
-		Level:  log.WarnLevel,
-		Writer: &log.ConsoleWriter{},
-	}
 	copieropts           copier.Option              = copier.Option{IgnoreEmpty: true, DeepCopy: false}
 	defaultLoggerOptions models.WriterConfiguration = models.WriterConfiguration{
 		Type:       models.LogWriterTypeConsole,
@@ -40,40 +33,99 @@ var (
 
 // logger is the main arbor logger implementation that supports multiple writers
 type logger struct {
-	writers     map[string]writers.IWriter
 	contextData map[string]string // Track context key-value pairs
+	internallog log.Logger
 }
 
-// Logger creates a new arbor logger with console writer as default
+var defaultLogger ILogger
+
+// Logger returns the default logger instance, creating it if it doesn't exist
 func Logger() ILogger {
-
-	var (
-		configuredWriters map[string]writers.IWriter = make(map[string]writers.IWriter)
-	)
-
-	// Add Console Writer
-	configuredWriters[WRITER_CONSOLE] = writers.ConsoleWriter(defaultLoggerOptions)
-
-	return &logger{
-		writers:     configuredWriters,
-		contextData: make(map[string]string),
+	if defaultLogger == nil {
+		defaultLogger = createNewLogger()
 	}
+	return defaultLogger
+}
+
+// NewLogger creates a new logger instance
+// This is useful for testing or when you need isolated logger instances
+func NewLogger() ILogger {
+	return createNewLogger()
+}
+
+// createNewLogger is a helper function that creates a fresh logger instance
+func createNewLogger() ILogger {
+	// Create logger that will use registered writers
+	return &logger{
+		contextData: make(map[string]string),
+		internallog: log.Logger{
+			Level:      log.DebugLevel,
+			TimeFormat: "01-02 15:04:05.000",
+			Writer: &log.ConsoleWriter{
+				ColorOutput:    true,
+				EndWithMessage: true,
+			},
+		},
+	}
+}
+
+func (l *logger) WithConsoleWriter(configuration models.WriterConfiguration) ILogger {
+
+	l.internallog.Context = log.NewContext(nil).Str("function", "WithConsoleWriter").Value()
+
+	// Create and register the console writer
+	consoleWriter := writers.ConsoleWriter(configuration)
+	RegisterWriter(WRITER_CONSOLE, consoleWriter)
+
+	l.internallog.Trace().Msg("Console writer registered successfully.")
+
+	return l
+
+}
+
+func (l *logger) WithFileWriter(configuration models.WriterConfiguration) ILogger {
+
+	l.internallog.Context = log.NewContext(nil).Str("function", "WithFileWriter").Value()
+
+	// Create and register the file writer
+	fileWriter := writers.FileWriter(configuration)
+	RegisterWriter(WRITER_FILE, fileWriter)
+
+	l.internallog.Trace().Msg("File writer registered successfully.")
+
+	return l
+
+}
+
+func (l *logger) WithMemoryWriter(configuration models.WriterConfiguration) ILogger {
+
+	l.internallog.Context = log.NewContext(nil).Str("function", "WithMemoryWriter").Value()
+
+	// Create and register the memory writer
+	memoryWriter := writers.MemoryWriter(configuration)
+	RegisterWriter(WRITER_MEMORY, memoryWriter)
+
+	l.internallog.Trace().Msg("Memory writer registered successfully.")
+
+	return l
 
 }
 
 func (l *logger) WithCorrelationId(correlationID string) ILogger {
 
+	l.internallog.Context = log.NewContext(nil).Str("function", "WithCorrelationId").Value()
+
 	if common.IsEmpty(correlationID) {
 
 		uuid, err := uuid.NewRandom()
 		if err != nil {
-			internallog.Warn().Err(err).Msg("")
+			l.internallog.Warn().Err(err).Msg("")
 		}
 
 		correlationID = uuid.String()
 	}
 
-	internallog.Trace().Msgf("Adding CorrelationId -> CorrelationId:%s", correlationID)
+	l.internallog.Debug().Msgf("Adding CorrelationId -> CorrelationId:%s", correlationID)
 
 	l.WithContext(CORRELATION_ID_KEY, correlationID)
 
@@ -83,11 +135,13 @@ func (l *logger) WithCorrelationId(correlationID string) ILogger {
 
 func (l *logger) WithPrefix(value string) ILogger {
 
+	l.internallog.Context = log.NewContext(nil).Str("function", "WithPrefix").Value()
+
 	if common.IsEmpty(value) {
 		return l
 	}
 
-	internallog.Trace().Msgf("Replacing Prefix:%s", value)
+	l.internallog.Trace().Msgf("Replacing Prefix:%s", value)
 
 	l.WithContext(PREFIX_KEY, value)
 
@@ -96,18 +150,20 @@ func (l *logger) WithPrefix(value string) ILogger {
 
 func (l *logger) WithLevel(level LogLevel) ILogger {
 
-	internallog.Trace().Msg("Iterating over writers")
+	l.internallog.Context = log.NewContext(nil).Str("function", "WithLevel").Value()
+	l.internallog.Trace().Msg("Iterating over registered writers")
 
-	// Ensure writers map exists before iterating
-	if len(l.writers) == 0 {
-		internallog.Trace().Msg("No writers configured.")
+	// Get all registered writers
+	registeredWriters := GetAllRegisteredWriters()
+	if len(registeredWriters) == 0 {
+		l.internallog.Trace().Msg("No writers registered.")
 		return l
 	}
 
 	lvl := ParseLogLevel(int(level))
 
-	for key, writer := range l.writers {
-		internallog.Trace().Msgf("Key: \"%s\", Writer Type: %T\n", key, writer)
+	for key, writer := range registeredWriters {
+		l.internallog.Trace().Msgf("Key: \"%s\", Writer Type: %T\n", key, writer)
 		writer.WithLevel(lvl)
 	}
 
@@ -116,64 +172,31 @@ func (l *logger) WithLevel(level LogLevel) ILogger {
 }
 
 func (l *logger) WithContext(key string, value string) ILogger {
+
+	l.internallog.Context = log.NewContext(nil).Str("function", "WithLevel").Value()
+
 	if common.IsEmpty(key) || common.IsEmpty(value) {
-		internallog.Trace().Msgf("Key or Value empty -> returning")
+		l.internallog.Trace().Msgf("Key or Value empty -> returning")
 		return l
 	}
 
 	// Ensure contextData map is initialized
 	if l.contextData == nil {
 		l.contextData = make(map[string]string)
-		internallog.Trace().Msg("contextData was nil, initialized it.")
+		l.internallog.Trace().Msg("contextData was nil, initialized it.")
 	}
 
 	// Check if the specific 'key' already exists
 	if _, exists := l.contextData[key]; exists {
 		l.contextData[key] = value
-		internallog.Trace().Msgf("Updated existing context key '%s' to: %s", key, value)
+		l.internallog.Trace().Msgf("Updated existing context key '%s' to: %s", key, value)
 	} else {
 		l.contextData[key] = value
-		internallog.Trace().Msgf("Added new context key '%s' with value: %s", key, value)
+		l.internallog.Trace().Msgf("Added new context key '%s' with value: %s", key, value)
 	}
 
 	return l
 }
-
-func (l *logger) WithFileWriter(configuration models.WriterConfiguration) ILogger {
-
-	// 1. Check if contextData is nil (not yet created/initialized).
-	if l.writers == nil {
-		l.writers = make(map[string]writers.IWriter)
-		internallog.Trace().Msg("writers was nil, initialized it.")
-	}
-
-	// Add File Writer
-	l.writers[WRITER_FILE] = writers.FileWriter(configuration)
-
-	return l
-
-}
-
-func (l *logger) WithMemoryWriter(configuration models.WriterConfiguration) ILogger {
-
-	// 1. Check if writers is nil (not yet created/initialized).
-	if l.writers == nil {
-		l.writers = make(map[string]writers.IWriter)
-		internallog.Trace().Msg("writers was nil, initialized it.")
-	}
-
-	// Add Memory Writer
-	l.writers[WRITER_MEMORY] = writers.MemoryWriter(configuration)
-
-	return l
-
-}
-
-// func (l *logger) Write(p []byte) (n int, err error) {
-
-// 	return n, nil
-
-// }
 
 func (d *logger) getFunctionName() string {
 	// Try different caller depths to find the actual calling function
@@ -232,101 +255,70 @@ func (l *logger) Panic() ILogEvent {
 	return newLogEvent(l, log.PanicLevel)
 }
 
-// Global logger instance
-var defaultLogger ILogger
-
-// init initializes the default logger
-func init() {
-	defaultLogger = Logger()
-}
-
-// GetLogger returns the default logger instance
+// GetLogger returns the default logger instance from the registry
 func GetLogger() ILogger {
-	return defaultLogger
+	return Logger()
 }
 
 // Global convenience functions for direct logging
 func Trace() ILogEvent {
-	return defaultLogger.Trace()
+	return GetLogger().Trace()
 }
 
 func Debug() ILogEvent {
-	return defaultLogger.Debug()
+	return GetLogger().Debug()
 }
 
 func Info() ILogEvent {
-	return defaultLogger.Info()
+	return GetLogger().Info()
 }
 
 func Warn() ILogEvent {
-	return defaultLogger.Warn()
+	return GetLogger().Warn()
 }
 
 func Error() ILogEvent {
-	return defaultLogger.Error()
+	return GetLogger().Error()
 }
 
 func Fatal() ILogEvent {
-	return defaultLogger.Fatal()
+	return GetLogger().Fatal()
 }
 
 func Panic() ILogEvent {
-	return defaultLogger.Panic()
-}
-
-func (l *logger) GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error) {
-	// Check if memory writer is configured
-	if l.writers == nil {
-		return make(map[string]string), nil
-	}
-
-	memoryWriter, hasMemoryWriter := l.writers[WRITER_MEMORY]
-	if !hasMemoryWriter {
-		return make(map[string]string), nil
-	}
-
-	// Cast to IMemoryWriter and call the method
-	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
-		return mw.GetEntriesWithLevel(correlationid, minLevel.ToLogLevel())
-	}
-
-	return make(map[string]string), nil
+	return GetLogger().Panic()
 }
 
 func (l *logger) GetMemoryLogsForCorrelation(correlationid string) (map[string]string, error) {
-	// Check if memory writer is configured
-	if l.writers == nil {
+	return l.GetMemoryLogs(correlationid, TraceLevel)
+}
+
+func (l *logger) GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error) {
+
+	l.internallog.Context = log.NewContext(nil).Str("function", "GetMemoryLogs").Value()
+
+	// Get memory writer from registry
+	memoryWriter := GetRegisteredMemoryWriter(WRITER_MEMORY)
+	if memoryWriter == nil {
+		l.internallog.Warn().Msg("Memory writer not registered -> return")
 		return make(map[string]string), nil
 	}
 
-	memoryWriter, hasMemoryWriter := l.writers[WRITER_MEMORY]
-	if !hasMemoryWriter {
-		return make(map[string]string), nil
-	}
-
-	// Cast to IMemoryWriter and call the method
-	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
-		return mw.GetEntries(correlationid)
-	}
-
-	return make(map[string]string), nil
+	l.internallog.Debug().Msg("Getting Memory writer entries -> GetEntriesWithLevel")
+	return memoryWriter.GetEntriesWithLevel(correlationid, minLevel.ToLogLevel())
 }
 
 func (l *logger) GetMemoryLogsWithLimit(limit int) (map[string]string, error) {
-	// Check if memory writer is configured
-	if l.writers == nil {
+
+	l.internallog.Context = log.NewContext(nil).Str("function", "GetMemoryLogsWithLimit").Value()
+
+	// Get memory writer from registry
+	memoryWriter := GetRegisteredMemoryWriter(WRITER_MEMORY)
+	if memoryWriter == nil {
+		l.internallog.Warn().Msg("Memory writer not registered -> return")
 		return make(map[string]string), nil
 	}
 
-	memoryWriter, hasMemoryWriter := l.writers[WRITER_MEMORY]
-	if !hasMemoryWriter {
-		return make(map[string]string), nil
-	}
-
-	// Cast to IMemoryWriter and call the method
-	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
-		return mw.GetEntriesWithLimit(limit)
-	}
-
-	return make(map[string]string), nil
+	l.internallog.Debug().Msgf("Getting Memory writer entries -> GetEntriesWithLimit(%v)", limit)
+	return memoryWriter.GetEntriesWithLimit(limit)
 }

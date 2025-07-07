@@ -77,8 +77,9 @@ func (le *logEvent) writeLog(message string) {
 	// Add function name
 	logEvent.Function = le.logger.getFunctionName()
 
-	// Write to all configured writers
-	for writerKey, writer := range le.logger.writers {
+	// Write to all registered writers
+	registeredWriters := GetAllRegisteredWriters()
+	for writerKey, writer := range registeredWriters {
 		if writerKey == WRITER_CONSOLE {
 			// Console writer expects JSON data (phuslu will handle formatting)
 			if jsonData, err := json.Marshal(logEvent); err == nil {

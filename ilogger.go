@@ -5,7 +5,11 @@ import (
 )
 
 type ILogger interface {
-	// Write(p []byte) (n int, err error)
+	WithConsoleWriter(config models.WriterConfiguration) ILogger
+
+	WithFileWriter(config models.WriterConfiguration) ILogger
+
+	WithMemoryWriter(config models.WriterConfiguration) ILogger
 
 	WithPrefix(value string) ILogger
 
@@ -14,10 +18,6 @@ type ILogger interface {
 	WithLevel(lvl LogLevel) ILogger
 
 	WithContext(key string, value string) ILogger
-
-	WithFileWriter(config models.WriterConfiguration) ILogger
-
-	WithMemoryWriter(config models.WriterConfiguration) ILogger
 
 	// Fluent logging methods
 	Trace() ILogEvent

@@ -7,6 +7,7 @@ import (
 
 	"github.com/phuslu/log"
 	"github.com/ternarybob/arbor/models"
+	"github.com/ternarybob/arbor/writers"
 )
 
 func TestLogger_MemoryWriterIntegration(t *testing.T) {
@@ -62,7 +63,7 @@ func TestLogger_MemoryWriterIntegration(t *testing.T) {
 
 func TestLogger_WithoutMemoryWriter(t *testing.T) {
 	// Create logger without memory writer
-	logger := Logger()
+	logger := NewLogger()
 
 	// Try to get memory logs
 	logs, err := logger.GetMemoryLogs("test", LogLevel(log.InfoLevel))
@@ -269,8 +270,17 @@ func TestLogger_GetMemoryLogsWithLimit_Ordering(t *testing.T) {
 }
 
 func TestLogger_GetMemoryLogs_WithoutMemoryWriter(t *testing.T) {
+	// Unregister memory writer to test behavior without it
+	UnregisterWriter(WRITER_MEMORY)
+	defer func() {
+		// Re-register memory writer for other tests
+		config := models.WriterConfiguration{}
+		memoryWriter := writers.MemoryWriter(config)
+		RegisterWriter(WRITER_MEMORY, memoryWriter)
+	}()
+
 	// Create logger without memory writer
-	logger := Logger()
+	logger := NewLogger()
 
 	// Try to get memory logs with new methods
 	correlationLogs, err := logger.GetMemoryLogsForCorrelation("test")

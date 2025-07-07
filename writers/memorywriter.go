@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,10 +18,10 @@ import (
 
 const (
 	CORRELATIONID_KEY = "CORRELATIONID"
-	BUFFER_LIMIT      = 1000           // Maximum entries per correlation ID
-	DEFAULT_TTL       = 24 * time.Hour // Default expiration time
-	CLEANUP_INTERVAL  = 1 * time.Hour  // How often to clean up expired entries
-	LOG_BUCKET        = "logs"         // BoltDB bucket name
+	BUFFER_LIMIT      = 1000             // Maximum entries per correlation ID
+	DEFAULT_TTL       = 10 * time.Minute // Default expiration time
+	CLEANUP_INTERVAL  = 1 * time.Minute  // How often to clean up expired entries
+	LOG_BUCKET        = "logs"           // BoltDB bucket name
 )
 
 var (
@@ -32,10 +33,14 @@ var (
 	dbMux        sync.RWMutex
 
 	// Internal logger for debugging
-	memoryLogLevel    log.Level  = log.WarnLevel
+	memoryLogLevel    log.Level  = log.DebugLevel
 	memoryInternalLog log.Logger = log.Logger{
-		Level:  memoryLogLevel,
-		Writer: &log.ConsoleWriter{},
+		Level:      memoryLogLevel,
+		TimeFormat: "01-02 15:04:05.000",
+		Writer: &log.ConsoleWriter{
+			ColorOutput:    true,
+			EndWithMessage: true,
+		},
 	}
 )
 
@@ -297,7 +302,9 @@ func (mw *memoryWriter) GetEntriesWithLevel(correlationid string, minLevel log.L
 		return entries, nil // Return empty instead of error
 	}
 
-	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Getting log entries correlationid:%s minLevel:%s", correlationid, minLevel.String())
+	memoryInternalLog.Debug().
+		Str("prefix", "GetEntriesWithLevel").
+		Msgf("Getting log entries correlationid:%s minLevel:%s", correlationid, minLevel.String())
 
 	err := mw.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(LOG_BUCKET))
@@ -488,14 +495,14 @@ func (mw *memoryWriter) GetEntriesWithLimit(limit int) (map[string]string, error
 	}
 
 	// Sort by timestamp descending (most recent first), then by index descending as tiebreaker
-	for i := 0; i < len(allEntries)-1; i++ {
-		for j := i + 1; j < len(allEntries); j++ {
-			if allEntries[i].timestamp.Before(allEntries[j].timestamp) ||
-				(allEntries[i].timestamp.Equal(allEntries[j].timestamp) && allEntries[i].index < allEntries[j].index) {
-				allEntries[i], allEntries[j] = allEntries[j], allEntries[i]
-			}
+	sort.Slice(allEntries, func(i, j int) bool {
+		// First compare by timestamp (newer first)
+		if !allEntries[i].timestamp.Equal(allEntries[j].timestamp) {
+			return allEntries[i].timestamp.After(allEntries[j].timestamp)
 		}
-	}
+		// If timestamps are equal, compare by index (higher index first)
+		return allEntries[i].index > allEntries[j].index
+	})
 
 	// Take only the first 'limit' entries
 	entries := make(map[string]string)
