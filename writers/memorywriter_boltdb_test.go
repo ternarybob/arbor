@@ -390,7 +390,7 @@ func TestBoltDBMemoryWriter_GetAllEntries(t *testing.T) {
 
 	// Verify that entries from all correlation IDs are present
 	foundCorrelationIDs := make(map[string]int)
-	for key, _ := range allEntries {
+	for key := range allEntries {
 		// Extract correlation ID from key (format: "correlationid:index")
 		for _, expectedID := range correlationIDs {
 			if len(key) > len(expectedID) && key[:len(expectedID)] == expectedID {
