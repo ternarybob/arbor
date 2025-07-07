@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 	"go.etcd.io/bbolt"
@@ -33,15 +34,7 @@ var (
 	dbMux        sync.RWMutex
 
 	// Internal logger for debugging
-	memoryLogLevel    log.Level  = log.DebugLevel
-	memoryInternalLog log.Logger = log.Logger{
-		Level:      memoryLogLevel,
-		TimeFormat: "01-02 15:04:05.000",
-		Writer: &log.ConsoleWriter{
-			ColorOutput:    true,
-			EndWithMessage: true,
-		},
-	}
+	memoryLogLevel log.Level = log.DebugLevel
 )
 
 type memoryWriter struct {
@@ -59,16 +52,19 @@ type StoredLogEntry struct {
 }
 
 func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter").GetLogger()
+
 	// Get executable directory and create temp subdirectory
 	execDir, err := os.Getwd()
 	if err != nil {
-		memoryInternalLog.Fatal().Err(err).Msg("Failed to get current working directory")
+		internalLog.Fatal().Err(err).Msg("Failed to get current working directory")
 	}
 	tempDir := filepath.Join(execDir, "temp")
 
 	// Ensure temp directory exists
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		memoryInternalLog.Fatal().Err(err).Msg("Failed to create temp directory")
+		internalLog.Fatal().Err(err).Msg("Failed to create temp directory")
 	}
 
 	// Create date-based database filename (YYMMDD format)
@@ -87,7 +83,7 @@ func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 			Timeout: 5 * time.Second,
 		})
 		if err != nil {
-			memoryInternalLog.Fatal().Err(err).Str("db_path", dbPath).Msg("Failed to open BoltDB - database conflict detected")
+			internalLog.Fatal().Err(err).Str("db_path", dbPath).Msg("Failed to open BoltDB - database conflict detected")
 		}
 
 		// Create bucket if it doesn't exist
@@ -96,7 +92,7 @@ func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 			return err
 		})
 		if err != nil {
-			memoryInternalLog.Fatal().Err(err).Msg("Failed to create bucket")
+			internalLog.Fatal().Err(err).Msg("Failed to create bucket")
 		}
 
 		// Store in global instances
@@ -129,6 +125,8 @@ func (mw *memoryWriter) WithLevel(level log.Level) IWriter {
 }
 
 func (mw *memoryWriter) Write(entry []byte) (int, error) {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.Write").GetLogger()
 	ep := len(entry)
 
 	if ep == 0 {
@@ -137,13 +135,16 @@ func (mw *memoryWriter) Write(entry []byte) (int, error) {
 
 	err := mw.writeline(entry)
 	if err != nil {
-		memoryInternalLog.Warn().Str("prefix", "Write").Err(err).Msg("")
+		internalLog.Warn().Err(err).Msg("Error when actioning writeline")
 	}
 
 	return ep, nil
 }
 
 func (mw *memoryWriter) writeline(event []byte) error {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.writeline").GetLogger()
+
 	if len(event) <= 0 {
 		return nil // Don't error on empty events
 	}
@@ -151,12 +152,12 @@ func (mw *memoryWriter) writeline(event []byte) error {
 	var logentry models.LogEvent
 
 	if err := json.Unmarshal(event, &logentry); err != nil {
-		memoryInternalLog.Warn().Str("prefix", "writeline").Err(err).Msgf("Error:%s Event:%s", err.Error(), string(event))
+		internalLog.Warn().Err(err).Msgf("Error:%s Event:%s", err.Error(), string(event))
 		return err
 	}
 
 	if isEmpty(logentry.CorrelationID) {
-		memoryInternalLog.Debug().Str("prefix", "writeline").Msgf("CorrelationID is empty -> no write to memory store")
+		internalLog.Trace().Msgf("CorrelationID is empty -> no write to memory store -> return")
 		return nil
 	}
 
@@ -194,7 +195,7 @@ func (mw *memoryWriter) writeline(event []byte) error {
 			return err
 		}
 
-		memoryInternalLog.Trace().Str("prefix", "writeline").Msgf("CorrelationID:%s -> message:%s (key: %s)",
+		internalLog.Trace().Msgf("CorrelationID:%s -> message:%s (key: %s)",
 			logentry.CorrelationID, logentry.Message, key)
 
 		return nil
@@ -202,13 +203,15 @@ func (mw *memoryWriter) writeline(event []byte) error {
 }
 
 func (mw *memoryWriter) GetEntries(correlationid string) (map[string]string, error) {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.GetEntries").GetLogger()
 	entries := make(map[string]string)
 
 	if correlationid == "" {
 		return entries, nil // Return empty instead of error
 	}
 
-	memoryInternalLog.Debug().Str("prefix", "GetEntries").Msgf("Getting log entries correlationid:%s", correlationid)
+	internalLog.Debug().Msgf("Getting log entries correlationid:%s", correlationid)
 
 	err := mw.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(LOG_BUCKET))
@@ -223,13 +226,13 @@ func (mw *memoryWriter) GetEntries(correlationid string) (map[string]string, err
 		for k, v := c.Seek(prefix); k != nil && strings.HasPrefix(string(k), string(prefix)); k, v = c.Next() {
 			var storedEntry StoredLogEntry
 			if err := json.Unmarshal(v, &storedEntry); err != nil {
-				memoryInternalLog.Warn().Str("prefix", "GetEntries").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				internalLog.Warn().Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
 				continue
 			}
 
 			// Check if entry is expired
 			if time.Now().After(storedEntry.ExpiresAt) {
-				memoryInternalLog.Debug().Str("prefix", "GetEntries").Msgf("Entry expired for key %s", string(k))
+				internalLog.Debug().Msgf("Entry expired for key %s", string(k))
 				continue
 			}
 
@@ -241,19 +244,21 @@ func (mw *memoryWriter) GetEntries(correlationid string) (map[string]string, err
 	})
 
 	if err != nil {
-		memoryInternalLog.Error().Str("prefix", "GetEntries").Err(err).Msgf("Error retrieving entries for correlationid:%s", correlationid)
+		internalLog.Error().Err(err).Msgf("Error retrieving entries for correlationid:%s", correlationid)
 		return entries, err
 	}
 
-	memoryInternalLog.Debug().Str("prefix", "GetEntries").Msgf("Found %d entries for correlationid:%s", len(entries), correlationid)
+	internalLog.Debug().Msgf("Found %d entries for correlationid:%s", len(entries), correlationid)
 	return entries, nil
 }
 
 // GetAllEntries returns all log entries across all correlation IDs
 func (mw *memoryWriter) GetAllEntries() (map[string]string, error) {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.GetAllEntries").GetLogger()
 	entries := make(map[string]string)
 
-	memoryInternalLog.Debug().Str("prefix", "GetAllEntries").Msg("Getting all log entries")
+	internalLog.Debug().Msg("Getting all log entries")
 
 	err := mw.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(LOG_BUCKET))
@@ -267,13 +272,13 @@ func (mw *memoryWriter) GetAllEntries() (map[string]string, error) {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var storedEntry StoredLogEntry
 			if err := json.Unmarshal(v, &storedEntry); err != nil {
-				memoryInternalLog.Warn().Str("prefix", "GetAllEntries").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				internalLog.Warn().Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
 				continue
 			}
 
 			// Check if entry is expired
 			if time.Now().After(storedEntry.ExpiresAt) {
-				memoryInternalLog.Debug().Str("prefix", "GetAllEntries").Msgf("Entry expired for key %s", string(k))
+				internalLog.Debug().Msgf("Entry expired for key %s", string(k))
 				continue
 			}
 
@@ -286,23 +291,25 @@ func (mw *memoryWriter) GetAllEntries() (map[string]string, error) {
 	})
 
 	if err != nil {
-		memoryInternalLog.Error().Str("prefix", "GetAllEntries").Err(err).Msg("Error retrieving all entries")
+		internalLog.Error().Err(err).Msg("Error retrieving all entries")
 		return entries, err
 	}
 
-	memoryInternalLog.Debug().Str("prefix", "GetAllEntries").Msgf("Found %d total entries", len(entries))
+	internalLog.Debug().Msgf("Found %d total entries", len(entries))
 	return entries, nil
 }
 
 // GetEntriesWithLevel returns log entries filtered by minimum log level
 func (mw *memoryWriter) GetEntriesWithLevel(correlationid string, minLevel log.Level) (map[string]string, error) {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.GetEntriesWithLevel").GetLogger()
 	entries := make(map[string]string)
 
 	if correlationid == "" {
 		return entries, nil // Return empty instead of error
 	}
 
-	memoryInternalLog.Debug().
+	internalLog.Debug().
 		Str("prefix", "GetEntriesWithLevel").
 		Msgf("Getting log entries correlationid:%s minLevel:%s", correlationid, minLevel.String())
 
@@ -319,13 +326,13 @@ func (mw *memoryWriter) GetEntriesWithLevel(correlationid string, minLevel log.L
 		for k, v := c.Seek(prefix); k != nil && strings.HasPrefix(string(k), string(prefix)); k, v = c.Next() {
 			var storedEntry StoredLogEntry
 			if err := json.Unmarshal(v, &storedEntry); err != nil {
-				memoryInternalLog.Warn().Str("prefix", "GetEntriesWithLevel").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				internalLog.Warn().Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
 				continue
 			}
 
 			// Check if entry is expired
 			if time.Now().After(storedEntry.ExpiresAt) {
-				memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Entry expired for key %s", string(k))
+				internalLog.Debug().Msgf("Entry expired for key %s", string(k))
 				continue
 			}
 
@@ -341,11 +348,11 @@ func (mw *memoryWriter) GetEntriesWithLevel(correlationid string, minLevel log.L
 	})
 
 	if err != nil {
-		memoryInternalLog.Error().Str("prefix", "GetEntriesWithLevel").Err(err).Msgf("Error retrieving entries for correlationid:%s", correlationid)
+		internalLog.Error().Err(err).Msgf("Error retrieving entries for correlationid:%s", correlationid)
 		return entries, err
 	}
 
-	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLevel").Msgf("Returning %d filtered entries (minLevel:%s)", len(entries), minLevel.String())
+	internalLog.Debug().Msgf("Returning %d filtered entries (minLevel:%s)", len(entries), minLevel.String())
 	return entries, nil
 }
 
@@ -442,11 +449,14 @@ func (mw *memoryWriter) GetStoredCorrelationIDs() []string {
 
 // GetEntriesWithLimit retrieves the most recent log entries up to the specified limit
 func (mw *memoryWriter) GetEntriesWithLimit(limit int) (map[string]string, error) {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.GetEntriesWithLimit").GetLogger()
+
 	if limit <= 0 {
 		return make(map[string]string), nil
 	}
 
-	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLimit").Msgf("Getting %d most recent log entries", limit)
+	internalLog.Debug().Msgf("Getting %d most recent log entries", limit)
 
 	// First, collect all entries with their timestamps
 	type entryWithTime struct {
@@ -468,13 +478,13 @@ func (mw *memoryWriter) GetEntriesWithLimit(limit int) (map[string]string, error
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var storedEntry StoredLogEntry
 			if err := json.Unmarshal(v, &storedEntry); err != nil {
-				memoryInternalLog.Warn().Str("prefix", "GetEntriesWithLimit").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				internalLog.Warn().Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
 				continue
 			}
 
 			// Check if entry is expired
 			if time.Now().After(storedEntry.ExpiresAt) {
-				memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLimit").Msgf("Entry expired for key %s", string(k))
+				internalLog.Debug().Msgf("Entry expired for key %s", string(k))
 				continue
 			}
 
@@ -490,7 +500,7 @@ func (mw *memoryWriter) GetEntriesWithLimit(limit int) (map[string]string, error
 	})
 
 	if err != nil {
-		memoryInternalLog.Error().Str("prefix", "GetEntriesWithLimit").Err(err).Msg("Error retrieving entries")
+		internalLog.Error().Err(err).Msg("Error retrieving entries")
 		return make(map[string]string), err
 	}
 
@@ -510,7 +520,7 @@ func (mw *memoryWriter) GetEntriesWithLimit(limit int) (map[string]string, error
 		entries[allEntries[i].key] = allEntries[i].value
 	}
 
-	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLimit").Msgf("Returning %d entries (limit: %d)", len(entries), limit)
+	internalLog.Debug().Msgf("Returning %d entries (limit: %d)", len(entries), limit)
 	return entries, nil
 }
 
@@ -552,12 +562,15 @@ func (mw *memoryWriter) Close() error {
 
 // startCleanup starts the automatic cleanup routine
 func (mw *memoryWriter) startCleanup() {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.startCleanup").GetLogger()
+
 	mw.cleanupTicker = time.NewTicker(CLEANUP_INTERVAL)
 	cleanupTicker := mw.cleanupTicker
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				memoryInternalLog.Debug().Str("prefix", "cleanup").Msgf("Cleanup goroutine exited: %v", r)
+				internalLog.Debug().Msgf("Cleanup goroutine exited: %v", r)
 			}
 		}()
 		for {
@@ -573,6 +586,9 @@ func (mw *memoryWriter) startCleanup() {
 
 // cleanupExpiredEntries removes expired log entries from BoltDB
 func (mw *memoryWriter) cleanupExpiredEntries() {
+
+	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.cleanupExpiredEntries").GetLogger()
+
 	cleanupMux.Lock()
 	defer cleanupMux.Unlock()
 
@@ -618,6 +634,6 @@ func (mw *memoryWriter) cleanupExpiredEntries() {
 			return nil
 		})
 
-		memoryInternalLog.Debug().Str("prefix", "cleanup").Msgf("Cleaned up %d expired entries", len(keysToDelete))
+		internalLog.Debug().Msgf("Cleaned up %d expired entries", len(keysToDelete))
 	}
 }

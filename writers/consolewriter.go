@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/ternarybob/arbor/models"
-	"github.com/ternarybob/arbor/services"
 
 	"github.com/gookit/color"
 	"github.com/phuslu/log"
@@ -24,9 +23,8 @@ func init() {
 }
 
 type consoleWriter struct {
-	logger     log.Logger
-	config     models.WriterConfiguration
-	ginService services.IGinService // Optional Gin formatting service
+	logger log.Logger
+	config models.WriterConfiguration
 }
 
 // ConsoleWriter creates a new ConsoleWriter with phuslu backend

@@ -35,4 +35,7 @@ type ILogger interface {
 
 	// GetMemoryLogsWithLimit retrieves the most recent log entries up to the specified limit
 	GetMemoryLogsWithLimit(limit int) (map[string]string, error)
+
+	// GinWriter returns an io.Writer that integrates Gin logs with arbor's memory writer
+	GinWriter() interface{}
 }

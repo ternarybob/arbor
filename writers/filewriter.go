@@ -7,7 +7,6 @@ import (
 
 	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
-	"github.com/ternarybob/arbor/services"
 
 	"github.com/phuslu/log"
 )
@@ -17,9 +16,8 @@ const (
 )
 
 type fileWriter struct {
-	logger     log.Logger
-	config     models.WriterConfiguration
-	ginService services.IGinService // Optional Gin formatting service
+	logger log.Logger
+	config models.WriterConfiguration
 }
 
 func FileWriter(config models.WriterConfiguration) IWriter {
