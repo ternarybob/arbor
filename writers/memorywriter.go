@@ -54,10 +54,22 @@ type StoredLogEntry struct {
 }
 
 func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
-	tempDir := os.TempDir()
-	// Create unique database file to avoid lock contention
-	timestamp := time.Now().UnixNano()
-	dbPath := filepath.Join(tempDir, fmt.Sprintf("arbor_logs_%d.db", timestamp))
+	// Get executable directory and create temp subdirectory
+	execDir, err := os.Getwd()
+	if err != nil {
+		memoryInternalLog.Fatal().Err(err).Msg("Failed to get current working directory")
+	}
+	tempDir := filepath.Join(execDir, "temp")
+
+	// Ensure temp directory exists
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		memoryInternalLog.Fatal().Err(err).Msg("Failed to create temp directory")
+	}
+
+	// Create date-based database filename (YYMMDD format)
+	now := time.Now()
+	dateStr := now.Format("060102") // YYMMDD format
+	dbPath := filepath.Join(tempDir, fmt.Sprintf("arbor_logs_%s.db", dateStr))
 
 	// Check if we already have this database instance
 	dbMux.RLock()
@@ -65,13 +77,12 @@ func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 	dbMux.RUnlock()
 
 	if !exists {
-		// Create new database instance
+		// Create new database instance with fatal error handling for conflicts
 		newDB, err := bbolt.Open(dbPath, 0600, &bbolt.Options{
 			Timeout: 5 * time.Second,
 		})
 		if err != nil {
-			memoryInternalLog.Error().Err(err).Msg("Failed to open BoltDB")
-			return nil
+			memoryInternalLog.Fatal().Err(err).Str("db_path", dbPath).Msg("Failed to open BoltDB - database conflict detected")
 		}
 
 		// Create bucket if it doesn't exist
@@ -80,9 +91,7 @@ func MemoryWriter(config models.WriterConfiguration) IMemoryWriter {
 			return err
 		})
 		if err != nil {
-			memoryInternalLog.Error().Err(err).Msg("Failed to create bucket")
-			newDB.Close()
-			return nil
+			memoryInternalLog.Fatal().Err(err).Msg("Failed to create bucket")
 		}
 
 		// Store in global instances
@@ -515,7 +524,7 @@ func (mw *memoryWriter) Close() error {
 		mw.cleanupStop = nil
 	}
 
-	// For testing and cleanup, close the database and remove from instances
+	// Close the database and remove from instances
 	if mw.db != nil {
 		dbMux.Lock()
 		defer dbMux.Unlock()
@@ -526,8 +535,9 @@ func (mw *memoryWriter) Close() error {
 		// Remove from global instances
 		delete(dbInstances, mw.dbPath)
 
-		// Remove the database file for testing
-		os.Remove(mw.dbPath)
+		// Note: Database files are kept for persistence across application restarts
+		// They will be reused if the application starts again on the same day
+		// Old files can be cleaned up manually or via external cleanup scripts
 	}
 
 	return nil
