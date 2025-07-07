@@ -29,4 +29,10 @@ type ILogger interface {
 	Panic() ILogEvent
 
 	GetMemoryLogs(correlationid string, minLevel LogLevel) (map[string]string, error)
+
+	// GetMemoryLogsForCorrelation retrieves all log entries for a specific correlation ID
+	GetMemoryLogsForCorrelation(correlationid string) (map[string]string, error)
+
+	// GetMemoryLogsWithLimit retrieves the most recent log entries up to the specified limit
+	GetMemoryLogsWithLimit(limit int) (map[string]string, error)
 }

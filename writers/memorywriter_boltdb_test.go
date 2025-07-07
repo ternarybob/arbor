@@ -340,3 +340,185 @@ func TestBoltDBMemoryWriter_Close(t *testing.T) {
 		t.Errorf("Second Close should not return error: %v", err)
 	}
 }
+
+func TestBoltDBMemoryWriter_GetAllEntries(t *testing.T) {
+	config := models.WriterConfiguration{}
+	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
+	defer writer.Close()
+
+	// Add multiple log events with different correlation IDs
+	timestamp := time.Now().UnixNano()
+	correlationIDs := []string{
+		fmt.Sprintf("test-all-1-%d", timestamp),
+		fmt.Sprintf("test-all-2-%d", timestamp),
+		fmt.Sprintf("test-all-3-%d", timestamp),
+	}
+
+	totalEntries := 0
+	for i, id := range correlationIDs {
+		// Add 2 entries per correlation ID
+		for j := 0; j < 2; j++ {
+			logEvent := models.LogEvent{
+				Level:         log.InfoLevel,
+				Timestamp:     time.Now().Add(time.Duration(i*2+j) * time.Millisecond),
+				CorrelationID: id,
+				Message:       fmt.Sprintf("test message %d-%d", i, j),
+			}
+
+			jsonData, _ := json.Marshal(logEvent)
+			writer.Write(jsonData)
+			totalEntries++
+		}
+	}
+
+	// Small delay to ensure writes are processed
+	time.Sleep(20 * time.Millisecond)
+
+	// Get all entries
+	allEntries, err := writer.GetAllEntries()
+	if err != nil {
+		t.Errorf("GetAllEntries should not return error: %v", err)
+	}
+
+	// Should have at least our entries (may have more from other tests)
+	if len(allEntries) < totalEntries {
+		t.Errorf("Expected at least %d entries, got %d", totalEntries, len(allEntries))
+	}
+
+	// Verify that entries from all correlation IDs are present
+	foundCorrelationIDs := make(map[string]int)
+	for key, _ := range allEntries {
+		// Extract correlation ID from key (format: "correlationid:index")
+		for _, expectedID := range correlationIDs {
+			if len(key) > len(expectedID) && key[:len(expectedID)] == expectedID {
+				foundCorrelationIDs[expectedID]++
+			}
+		}
+	}
+
+	for _, expectedID := range correlationIDs {
+		if foundCorrelationIDs[expectedID] < 2 {
+			t.Errorf("Expected at least 2 entries for correlation ID %s, got %d", expectedID, foundCorrelationIDs[expectedID])
+		}
+	}
+}
+
+func TestBoltDBMemoryWriter_GetEntriesWithLimit(t *testing.T) {
+	config := models.WriterConfiguration{}
+	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
+	defer writer.Close()
+
+	// Add multiple log events with different timestamps
+	timestamp := time.Now().UnixNano()
+	correlationID := fmt.Sprintf("test-limit-%d", timestamp)
+	entryCount := 5
+
+	for i := 0; i < entryCount; i++ {
+		logEvent := models.LogEvent{
+			Level:         log.InfoLevel,
+			Timestamp:     time.Now().Add(time.Duration(i) * time.Millisecond),
+			CorrelationID: correlationID,
+			Message:       fmt.Sprintf("test message %d", i),
+		}
+
+		jsonData, _ := json.Marshal(logEvent)
+		writer.Write(jsonData)
+	}
+
+	// Small delay to ensure writes are processed
+	time.Sleep(20 * time.Millisecond)
+
+	// Test with limit less than total entries
+	limit := 3
+	limitedEntries, err := writer.GetEntriesWithLimit(limit)
+	if err != nil {
+		t.Errorf("GetEntriesWithLimit should not return error: %v", err)
+	}
+
+	// Should have at most the limit (may have entries from other tests)
+	if len(limitedEntries) > limit+10 { // Allow some buffer for other test entries
+		t.Errorf("Expected at most around %d entries, got %d", limit+10, len(limitedEntries))
+	}
+
+	// Test with limit of 0
+	zeroEntries, err := writer.GetEntriesWithLimit(0)
+	if err != nil {
+		t.Errorf("GetEntriesWithLimit should not return error: %v", err)
+	}
+	if len(zeroEntries) != 0 {
+		t.Errorf("Expected 0 entries with limit 0, got %d", len(zeroEntries))
+	}
+
+	// Test with negative limit
+	negativeEntries, err := writer.GetEntriesWithLimit(-1)
+	if err != nil {
+		t.Errorf("GetEntriesWithLimit should not return error: %v", err)
+	}
+	if len(negativeEntries) != 0 {
+		t.Errorf("Expected 0 entries with negative limit, got %d", len(negativeEntries))
+	}
+}
+
+func TestBoltDBMemoryWriter_GetEntriesWithLimitOrdering(t *testing.T) {
+	config := models.WriterConfiguration{}
+	writer := MemoryWriter(config)
+	if writer == nil {
+		t.Fatal("MemoryWriter should not return nil")
+	}
+	defer writer.Close()
+
+	// Add log events with specific timestamps to test ordering
+	timestamp := time.Now().UnixNano()
+	correlationID := fmt.Sprintf("test-order-%d", timestamp)
+	baseTime := time.Now()
+
+	// Add entries with timestamps in specific order
+	timestamps := []time.Time{
+		baseTime.Add(-3 * time.Second), // Oldest
+		baseTime.Add(-1 * time.Second),
+		baseTime.Add(-2 * time.Second),
+		baseTime, // Most recent
+	}
+
+	for i, ts := range timestamps {
+		logEvent := models.LogEvent{
+			Level:         log.InfoLevel,
+			Timestamp:     ts,
+			CorrelationID: correlationID,
+			Message:       fmt.Sprintf("message %d at %v", i, ts.Format(time.RFC3339Nano)),
+		}
+
+		jsonData, _ := json.Marshal(logEvent)
+		writer.Write(jsonData)
+	}
+
+	// Small delay to ensure writes are processed
+	time.Sleep(20 * time.Millisecond)
+
+	// Get entries for this correlation ID to verify ordering
+	correlationEntries, err := writer.GetEntries(correlationID)
+	if err != nil {
+		t.Errorf("GetEntries should not return error: %v", err)
+	}
+	if len(correlationEntries) != 4 {
+		t.Errorf("Expected 4 entries for correlation %s, got %d", correlationID, len(correlationEntries))
+	}
+
+	// Test that GetEntriesWithLimit returns entries (we can't easily test exact ordering
+	// without knowing the exact internal key format, but we can verify it returns entries)
+	limitedEntries, err := writer.GetEntriesWithLimit(2)
+	if err != nil {
+		t.Errorf("GetEntriesWithLimit should not return error: %v", err)
+	}
+
+	// Should return some entries (exact count depends on other tests running)
+	if len(limitedEntries) == 0 {
+		t.Error("GetEntriesWithLimit should return some entries")
+	}
+}

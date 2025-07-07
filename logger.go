@@ -292,3 +292,41 @@ func (l *logger) GetMemoryLogs(correlationid string, minLevel LogLevel) (map[str
 
 	return make(map[string]string), nil
 }
+
+func (l *logger) GetMemoryLogsForCorrelation(correlationid string) (map[string]string, error) {
+	// Check if memory writer is configured
+	if l.writers == nil {
+		return make(map[string]string), nil
+	}
+
+	memoryWriter, hasMemoryWriter := l.writers[WRITER_MEMORY]
+	if !hasMemoryWriter {
+		return make(map[string]string), nil
+	}
+
+	// Cast to IMemoryWriter and call the method
+	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
+		return mw.GetEntries(correlationid)
+	}
+
+	return make(map[string]string), nil
+}
+
+func (l *logger) GetMemoryLogsWithLimit(limit int) (map[string]string, error) {
+	// Check if memory writer is configured
+	if l.writers == nil {
+		return make(map[string]string), nil
+	}
+
+	memoryWriter, hasMemoryWriter := l.writers[WRITER_MEMORY]
+	if !hasMemoryWriter {
+		return make(map[string]string), nil
+	}
+
+	// Cast to IMemoryWriter and call the method
+	if mw, ok := memoryWriter.(writers.IMemoryWriter); ok {
+		return mw.GetEntriesWithLimit(limit)
+	}
+
+	return make(map[string]string), nil
+}

@@ -10,12 +10,37 @@ import (
 	"github.com/ternarybob/arbor/models"
 )
 
+// setupTempDir creates the ../temp directory for tests and returns the path
+func setupTempDir(t *testing.T) string {
+	tempDir := "../temp"
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	return tempDir
+}
+
+// cleanupTempDir removes all files from the ../temp directory but keeps the directory
+func cleanupTempDir(t *testing.T) {
+	tempDir := "../temp"
+	if entries, err := os.ReadDir(tempDir); err == nil {
+		for _, entry := range entries {
+			filePath := filepath.Join(tempDir, entry.Name())
+			if err := os.RemoveAll(filePath); err != nil {
+				t.Logf("Warning: Failed to remove %s: %v", filePath, err)
+			}
+		}
+	}
+}
+
 func TestFileWriter_New(t *testing.T) {
+	tempDir := setupTempDir(t)
+	defer cleanupTempDir(t)
+
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
 		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
-		FileName:   "test.log",
+		FileName:   filepath.Join(tempDir, "test.log"),
 		MaxBackups: 3,
 		MaxSize:    1024,
 	}
@@ -51,11 +76,14 @@ func TestFileWriter_DefaultValues(t *testing.T) {
 }
 
 func TestFileWriter_WithLevel(t *testing.T) {
+	tempDir := setupTempDir(t)
+	defer cleanupTempDir(t)
+
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
 		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
-		FileName:   "test.log",
+		FileName:   filepath.Join(tempDir, "test.log"),
 	}
 
 	writer := FileWriter(config)
@@ -74,11 +102,8 @@ func TestFileWriter_WithLevel(t *testing.T) {
 
 func TestFileWriter_Write(t *testing.T) {
 	// Create a temporary directory for test logs
-	tempDir, err := os.MkdirTemp("", "arbor_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := setupTempDir(t)
+	defer cleanupTempDir(t)
 
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
@@ -127,6 +152,12 @@ func TestFileWriter_Write(t *testing.T) {
 }
 
 func TestFileWriter_Configuration(t *testing.T) {
+	tempDir := setupTempDir(t)
+	defer cleanupTempDir(t)
+
+	customLogPath := filepath.Join(tempDir, "custom.log")
+	testLogPath := filepath.Join(tempDir, "test.log")
+
 	testCases := []struct {
 		name     string
 		config   models.WriterConfiguration
@@ -138,14 +169,14 @@ func TestFileWriter_Configuration(t *testing.T) {
 				Type:       models.LogWriterTypeFile,
 				Level:      levels.InfoLevel,
 				TimeFormat: "15:04:05.000",
-				FileName:   "custom.log",
+				FileName:   customLogPath,
 				MaxBackups: 5,
 				MaxSize:    2048,
 			},
 			validate: func(t *testing.T, writer IWriter) {
 				fw := writer.(*fileWriter)
-				if fw.config.FileName != "custom.log" {
-					t.Errorf("Expected filename 'custom.log', got '%s'", fw.config.FileName)
+				if fw.config.FileName != customLogPath {
+					t.Errorf("Expected filename '%s', got '%s'", customLogPath, fw.config.FileName)
 				}
 				if fw.config.MaxBackups != 5 {
 					t.Errorf("Expected MaxBackups 5, got %d", fw.config.MaxBackups)
@@ -176,7 +207,7 @@ func TestFileWriter_Configuration(t *testing.T) {
 				Type:       models.LogWriterTypeFile,
 				Level:      levels.InfoLevel,
 				TimeFormat: "15:04:05.000",
-				FileName:   "test.log",
+				FileName:   testLogPath,
 				MaxBackups: 0, // Should get default of 5
 				MaxSize:    1024,
 			},
@@ -193,7 +224,7 @@ func TestFileWriter_Configuration(t *testing.T) {
 				Type:       models.LogWriterTypeFile,
 				Level:      levels.InfoLevel,
 				TimeFormat: "15:04:05.000",
-				FileName:   "test.log",
+				FileName:   testLogPath,
 				MaxBackups: 3,
 				MaxSize:    0, // Should get default of MaxLogSize
 			},
@@ -215,11 +246,14 @@ func TestFileWriter_Configuration(t *testing.T) {
 }
 
 func TestFileWriter_InterfaceCompliance(t *testing.T) {
+	tempDir := setupTempDir(t)
+	defer cleanupTempDir(t)
+
 	config := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
 		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
-		FileName:   "test.log",
+		FileName:   filepath.Join(tempDir, "test.log"),
 	}
 
 	writer := FileWriter(config)

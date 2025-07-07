@@ -235,6 +235,51 @@ func (mw *memoryWriter) GetEntries(correlationid string) (map[string]string, err
 	return entries, nil
 }
 
+// GetAllEntries returns all log entries across all correlation IDs
+func (mw *memoryWriter) GetAllEntries() (map[string]string, error) {
+	entries := make(map[string]string)
+
+	memoryInternalLog.Debug().Str("prefix", "GetAllEntries").Msg("Getting all log entries")
+
+	err := mw.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(LOG_BUCKET))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", LOG_BUCKET)
+		}
+
+		// Iterate through all keys in the bucket
+		c := bucket.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var storedEntry StoredLogEntry
+			if err := json.Unmarshal(v, &storedEntry); err != nil {
+				memoryInternalLog.Warn().Str("prefix", "GetAllEntries").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				continue
+			}
+
+			// Check if entry is expired
+			if time.Now().After(storedEntry.ExpiresAt) {
+				memoryInternalLog.Debug().Str("prefix", "GetAllEntries").Msgf("Entry expired for key %s", string(k))
+				continue
+			}
+
+			// Use the full key as the map key to ensure uniqueness across correlation IDs
+			key := string(k)
+			entries[key] = formatLogEvent(&storedEntry.LogEvent)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		memoryInternalLog.Error().Str("prefix", "GetAllEntries").Err(err).Msg("Error retrieving all entries")
+		return entries, err
+	}
+
+	memoryInternalLog.Debug().Str("prefix", "GetAllEntries").Msgf("Found %d total entries", len(entries))
+	return entries, nil
+}
+
 // GetEntriesWithLevel returns log entries filtered by minimum log level
 func (mw *memoryWriter) GetEntriesWithLevel(correlationid string, minLevel log.Level) (map[string]string, error) {
 	entries := make(map[string]string)
@@ -377,6 +422,80 @@ func (mw *memoryWriter) GetStoredCorrelationIDs() []string {
 	})
 
 	return ids
+}
+
+// GetEntriesWithLimit retrieves the most recent log entries up to the specified limit
+func (mw *memoryWriter) GetEntriesWithLimit(limit int) (map[string]string, error) {
+	if limit <= 0 {
+		return make(map[string]string), nil
+	}
+
+	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLimit").Msgf("Getting %d most recent log entries", limit)
+
+	// First, collect all entries with their timestamps
+	type entryWithTime struct {
+		key       string
+		value     string
+		timestamp time.Time
+		index     uint64
+	}
+
+	var allEntries []entryWithTime
+
+	err := mw.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(LOG_BUCKET))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", LOG_BUCKET)
+		}
+
+		c := bucket.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var storedEntry StoredLogEntry
+			if err := json.Unmarshal(v, &storedEntry); err != nil {
+				memoryInternalLog.Warn().Str("prefix", "GetEntriesWithLimit").Err(err).Msgf("Failed to unmarshal entry for key %s", string(k))
+				continue
+			}
+
+			// Check if entry is expired
+			if time.Now().After(storedEntry.ExpiresAt) {
+				memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLimit").Msgf("Entry expired for key %s", string(k))
+				continue
+			}
+
+			allEntries = append(allEntries, entryWithTime{
+				key:       string(k),
+				value:     formatLogEvent(&storedEntry.LogEvent),
+				timestamp: storedEntry.LogEvent.Timestamp,
+				index:     storedEntry.LogEvent.Index,
+			})
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		memoryInternalLog.Error().Str("prefix", "GetEntriesWithLimit").Err(err).Msg("Error retrieving entries")
+		return make(map[string]string), err
+	}
+
+	// Sort by timestamp descending (most recent first), then by index descending as tiebreaker
+	for i := 0; i < len(allEntries)-1; i++ {
+		for j := i + 1; j < len(allEntries); j++ {
+			if allEntries[i].timestamp.Before(allEntries[j].timestamp) ||
+				(allEntries[i].timestamp.Equal(allEntries[j].timestamp) && allEntries[i].index < allEntries[j].index) {
+				allEntries[i], allEntries[j] = allEntries[j], allEntries[i]
+			}
+		}
+	}
+
+	// Take only the first 'limit' entries
+	entries := make(map[string]string)
+	for i := 0; i < len(allEntries) && i < limit; i++ {
+		entries[allEntries[i].key] = allEntries[i].value
+	}
+
+	memoryInternalLog.Debug().Str("prefix", "GetEntriesWithLimit").Msgf("Returning %d entries (limit: %d)", len(entries), limit)
+	return entries, nil
 }
 
 // Close closes the memory writer and any underlying resources
