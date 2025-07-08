@@ -89,6 +89,7 @@ func (fw *fileWriter) Write(data []byte) (n int, err error) {
 	var logEvent models.LogEvent
 	if err := json.Unmarshal(data, &logEvent); err != nil {
 		// If not JSON, fallback to direct output
+		fw.logger.Warn().Msg("data not transposed to json -> fallback to string")
 		fw.logger.Info().Msg(string(data))
 		return n, nil
 	}

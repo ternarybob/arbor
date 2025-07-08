@@ -120,80 +120,12 @@ func (le *logEvent) writeLog(message string) {
 	logEvent.Function = le.logger.getFunctionName()
 
 	// Write to all registered writers
+	// Marshal once and send to all writers
 	registeredWriters := GetAllRegisteredWriters()
-	for writerKey, writer := range registeredWriters {
-		if writerKey == WRITER_CONSOLE {
-			// Console writer expects JSON data (phuslu will handle formatting)
-			if jsonData, err := json.Marshal(logEvent); err == nil {
-				writer.Write(jsonData)
-			}
-		} else if writerKey == WRITER_MEMORY {
-			// Memory writers need JSON format
-			if jsonData, err := json.Marshal(logEvent); err == nil {
-				writer.Write(jsonData)
-			}
-		} else {
-			// File writers get formatted string
-			logEntry := le.formatLogEntry(logEvent)
-			writer.Write([]byte(logEntry))
+	if jsonData, err := json.Marshal(logEvent); err == nil {
+		for _, writer := range registeredWriters {
+			writer.Write(jsonData)
 		}
-	}
-}
-
-// formatLogEntry formats the log event into a string
-func (le *logEvent) formatLogEntry(event *models.LogEvent) string {
-	timestamp := event.Timestamp.Format("15:04:05.000")
-	levelStr := le.levelToString(event.Level)
-
-	output := fmt.Sprintf("%s|%s", levelStr, timestamp)
-
-	if event.Prefix != "" {
-		output += fmt.Sprintf("|%s", event.Prefix)
-	}
-
-	if event.Function != "" {
-		output += fmt.Sprintf("|%s", event.Function)
-	}
-
-	if event.CorrelationID != "" {
-		output += fmt.Sprintf("|%s", event.CorrelationID)
-	}
-
-	// Add custom fields
-	for key, value := range event.Fields {
-		output += fmt.Sprintf("|%s=%v", key, value)
-	}
-
-	if event.Error != "" {
-		output += fmt.Sprintf("|error=%s", event.Error)
-	}
-
-	if event.Message != "" {
-		output += fmt.Sprintf("|%s", event.Message)
-	}
-
-	return output + "\n"
-}
-
-// levelToString converts log level to string representation
-func (le *logEvent) levelToString(level log.Level) string {
-	switch level {
-	case log.TraceLevel:
-		return "TRACE"
-	case log.DebugLevel:
-		return "DEBUG"
-	case log.InfoLevel:
-		return "INFO"
-	case log.WarnLevel:
-		return "WARN"
-	case log.ErrorLevel:
-		return "ERROR"
-	case log.FatalLevel:
-		return "FATAL"
-	case log.PanicLevel:
-		return "PANIC"
-	default:
-		return "INFO"
 	}
 }
 

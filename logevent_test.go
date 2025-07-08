@@ -2,11 +2,9 @@ package arbor
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/phuslu/log"
-	"github.com/ternarybob/arbor/models"
 )
 
 func TestNewLogEvent(t *testing.T) {
@@ -109,121 +107,6 @@ func TestLogEvent_Err(t *testing.T) {
 
 	if event.fields["component"] != "auth" {
 		t.Error("Should be able to chain Str and Err methods")
-	}
-}
-
-func TestLogEvent_LevelToString(t *testing.T) {
-	logger := Logger().(*logger)
-	event := newLogEvent(logger, log.InfoLevel)
-
-	testCases := []struct {
-		level    log.Level
-		expected string
-	}{
-		{log.TraceLevel, "TRACE"},
-		{log.DebugLevel, "DEBUG"},
-		{log.InfoLevel, "INFO"},
-		{log.WarnLevel, "WARN"},
-		{log.ErrorLevel, "ERROR"},
-		{log.FatalLevel, "FATAL"},
-		{log.PanicLevel, "PANIC"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.expected, func(t *testing.T) {
-			result := event.levelToString(tc.level)
-			if result != tc.expected {
-				t.Errorf("Expected %s, got %s", tc.expected, result)
-			}
-		})
-	}
-}
-
-func TestLogEvent_FormatLogEntry(t *testing.T) {
-	logger := Logger().(*logger)
-	event := newLogEvent(logger, log.InfoLevel)
-
-	// Add some fields and error
-	event.Str("key1", "value1").Str("key2", "value2").Err(errors.New("test error"))
-
-	// Create a mock log event
-	logEvent := &models.LogEvent{
-		Level:         log.InfoLevel,
-		Message:       "test message",
-		Prefix:        "TEST",
-		CorrelationID: "correlation-123",
-		Function:      "test.function",
-		Fields:        event.fields,
-		Error:         "test error",
-	}
-
-	result := event.formatLogEntry(logEvent)
-
-	// Should not be empty
-	if result == "" {
-		t.Error("formatLogEntry should not return empty string")
-	}
-
-	// Should contain level
-	if !strings.Contains(result, "INFO") {
-		t.Error("Formatted entry should contain level")
-	}
-
-	// Should contain message
-	if !strings.Contains(result, "test message") {
-		t.Error("Formatted entry should contain message")
-	}
-
-	// Should contain prefix
-	if !strings.Contains(result, "TEST") {
-		t.Error("Formatted entry should contain prefix")
-	}
-
-	// Should contain correlation ID
-	if !strings.Contains(result, "correlation-123") {
-		t.Error("Formatted entry should contain correlation ID")
-	}
-
-	// Should contain fields
-	if !strings.Contains(result, "key1=value1") {
-		t.Error("Formatted entry should contain fields")
-	}
-
-	// Should contain error
-	if !strings.Contains(result, "error=test error") {
-		t.Error("Formatted entry should contain error")
-	}
-
-	// Should end with newline
-	if !strings.HasSuffix(result, "\n") {
-		t.Error("Formatted entry should end with newline")
-	}
-}
-
-func TestLogEvent_FormatLogEntry_EmptyFields(t *testing.T) {
-	logger := Logger().(*logger)
-	event := newLogEvent(logger, log.InfoLevel)
-
-	// Create a minimal log event
-	logEvent := &models.LogEvent{
-		Level:   log.InfoLevel,
-		Message: "simple message",
-	}
-
-	result := event.formatLogEntry(logEvent)
-
-	// Should still work with minimal fields
-	if result == "" {
-		t.Error("formatLogEntry should not return empty string even with minimal fields")
-	}
-
-	// Should contain level and message
-	if !strings.Contains(result, "INFO") {
-		t.Error("Should contain level")
-	}
-
-	if !strings.Contains(result, "simple message") {
-		t.Error("Should contain message")
 	}
 }
 
