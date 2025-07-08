@@ -132,6 +132,9 @@ func (gw *ginWriter) determineLogLevel(logContent string) log.Level {
 	if strings.Contains(lowerContent, "warning") || strings.Contains(lowerContent, "warn") {
 		return log.WarnLevel
 	}
+	if strings.Contains(lowerContent, "[gin]") || strings.Contains(lowerContent, "debug") {
+		return log.DebugLevel
+	}
 	if strings.Contains(lowerContent, "[gin-debug]") || strings.Contains(lowerContent, "debug") {
 		return log.DebugLevel
 	}
