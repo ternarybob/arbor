@@ -2,10 +2,6 @@ package writers
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
@@ -18,10 +14,9 @@ const (
 )
 
 type fileWriter struct {
-	logger     log.Logger
-	config     models.WriterConfiguration
-	customFile *os.File
-	fileName   string
+	logger   log.Logger
+	config   models.WriterConfiguration
+	fileName string
 }
 
 func FileWriter(config models.WriterConfiguration) IWriter {
@@ -41,50 +36,15 @@ func FileWriter(config models.WriterConfiguration) IWriter {
 		fileName = "logs/main.log"
 	}
 
-	if !common.IsEmpty(config.LogNameFormat) {
-		now := time.Now()
-		fileName = strings.ReplaceAll(config.LogNameFormat, "YY", now.Format("06"))
-		fileName = strings.ReplaceAll(fileName, "MM", now.Format("01"))
-		fileName = strings.ReplaceAll(fileName, "DD", now.Format("02"))
-		fileName = strings.ReplaceAll(fileName, "TT", now.Format("15"))
-		fileName = strings.ReplaceAll(fileName, "mm", now.Format("04"))
-	}
-
 	fw := &fileWriter{
 		config:   config,
 		fileName: fileName,
 	}
 
-	if config.DisableTimestamp {
-		// Use custom file writer that respects exact filename
-		err := fw.initCustomFileWriter()
-		if err != nil {
-			// Fallback to phuslu if custom writer fails
-			fw.initPhusluWriter(fileName, maxSize, maxBackups)
-		}
-	} else {
-		// Use phuslu file writer (with timestamp appending)
-		fw.initPhusluWriter(fileName, maxSize, maxBackups)
-	}
+	// Use phuslu file writer with standard backup naming convention
+	fw.initPhusluWriter(fileName, maxSize, maxBackups)
 
 	return fw
-}
-
-func (fw *fileWriter) initCustomFileWriter() error {
-	// Ensure directory exists
-	dir := filepath.Dir(fw.fileName)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
-	// Open file for appending
-	file, err := os.OpenFile(fw.fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-
-	fw.customFile = file
-	return nil
 }
 
 func (fw *fileWriter) initPhusluWriter(fileName string, maxSize int64, maxBackups int) {
@@ -123,11 +83,6 @@ func (fw *fileWriter) Write(data []byte) (n int, err error) {
 	n = len(data)
 	if n <= 0 {
 		return n, nil
-	}
-
-	// If using custom file writer (DisableTimestamp = true), write directly to file
-	if fw.config.DisableTimestamp && fw.customFile != nil {
-		return fw.writeToCustomFile(data)
 	}
 
 	// Parse JSON log event from arbor
@@ -184,52 +139,4 @@ func (fw *fileWriter) Write(data []byte) (n int, err error) {
 	phusluEvent.Msg(logEvent.Message)
 
 	return n, nil
-}
-
-func (fw *fileWriter) writeToCustomFile(data []byte) (n int, err error) {
-	// Parse JSON log event from arbor
-	var logEvent models.LogEvent
-	if err := json.Unmarshal(data, &logEvent); err != nil {
-		// If not JSON, write raw data
-		return fw.customFile.Write(append(data, '\n'))
-	}
-
-	// Format the log entry similar to phuslu format but without timestamp appending
-	logLine := fw.formatLogEntry(logEvent)
-	return fw.customFile.Write([]byte(logLine + "\n"))
-}
-
-func (fw *fileWriter) formatLogEntry(logEvent models.LogEvent) string {
-	// Create a JSON-formatted log entry similar to phuslu
-	entry := map[string]interface{}{
-		"time":    logEvent.Timestamp.Format(fw.config.TimeFormat),
-		"level":   strings.ToLower(logEvent.Level.String()),
-		"message": logEvent.Message,
-	}
-
-	if logEvent.Prefix != "" {
-		entry["prefix"] = logEvent.Prefix
-	}
-	if logEvent.Function != "" {
-		entry["function"] = logEvent.Function
-	}
-	if logEvent.CorrelationID != "" {
-		entry["correlationid"] = logEvent.CorrelationID
-	}
-	if logEvent.Error != "" {
-		entry["error"] = logEvent.Error
-	}
-
-	// Add custom fields
-	for key, value := range logEvent.Fields {
-		entry[key] = value
-	}
-
-	// Convert to JSON
-	jsonData, err := json.Marshal(entry)
-	if err != nil {
-		return logEvent.Message // Fallback to just the message
-	}
-
-	return string(jsonData)
 }

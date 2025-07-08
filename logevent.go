@@ -26,6 +26,12 @@ func newLogEvent(logger *logger, level log.Level) *logEvent {
 	}
 }
 
+// Strs adds a string slice field to the log event
+func (le *logEvent) Strs(key string, values []string) ILogEvent {
+	le.fields[key] = values
+	return le
+}
+
 // Str adds a string field to the log event
 func (le *logEvent) Str(key, value string) ILogEvent {
 	le.fields[key] = value
@@ -35,6 +41,42 @@ func (le *logEvent) Str(key, value string) ILogEvent {
 // Err adds an error field to the log event
 func (le *logEvent) Err(err error) ILogEvent {
 	le.err = err
+	return le
+}
+
+// Int adds an integer field to the log event
+func (le *logEvent) Int(key string, value int) ILogEvent {
+	le.fields[key] = value
+	return le
+}
+
+// Int32 adds an int32 field to the log event
+func (le *logEvent) Int32(key string, value int32) ILogEvent {
+	le.fields[key] = value
+	return le
+}
+
+// Int64 adds an int64 field to the log event
+func (le *logEvent) Int64(key string, value int64) ILogEvent {
+	le.fields[key] = value
+	return le
+}
+
+// Float32 adds a float32 field to the log event
+func (le *logEvent) Float32(key string, value float32) ILogEvent {
+	le.fields[key] = value
+	return le
+}
+
+// Dur adds a duration field to the log event
+func (le *logEvent) Dur(key string, value time.Duration) ILogEvent {
+	le.fields[key] = value.String()
+	return le
+}
+
+// Float64 adds a float64 field to the log event
+func (le *logEvent) Float64(key string, value float64) ILogEvent {
+	le.fields[key] = value
 	return le
 }
 

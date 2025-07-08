@@ -1,7 +1,6 @@
 package writers
 
 import (
-	"encoding/json"
 	"io"
 	"regexp"
 	"strings"
@@ -14,19 +13,17 @@ import (
 )
 
 // ginWriter implements io.Writer for Gin framework integration
-// It captures Gin logs and routes them through arbor's existing memory writer infrastructure
+// It captures Gin logs and routes them through arbor's logging infrastructure
 type ginWriter struct {
 	config         models.WriterConfiguration
-	memoryWriter   IMemoryWriter
 	correlationID  string
 	correlationMux sync.RWMutex
 }
 
-// GinWriter creates a new Gin writer that integrates with arbor's memory writer
-func GinWriter(config models.WriterConfiguration, memoryWriter IMemoryWriter) io.Writer {
+// GinWriter creates a new Gin writer that integrates with arbor's logging infrastructure
+func GinWriter(config models.WriterConfiguration) io.Writer {
 	return &ginWriter{
-		config:       config,
-		memoryWriter: memoryWriter,
+		config: config,
 	}
 }
 
@@ -54,29 +51,9 @@ func (gw *ginWriter) Write(p []byte) (n int, err error) {
 	// This ensures we see all Gin messages including route registration
 	gw.outputToConsole(logEvent)
 
-	// Check if we should log this level for memory storage
+	// Check if we should log this level
 	if !gw.shouldLogLevel(logEvent.Level) {
 		return len(p), nil
-	}
-
-	// Convert to JSON for memory writer
-	jsonData, err := json.Marshal(logEvent)
-	if err != nil {
-		internalLog.Warn().Err(err).Msg("Failed to marshal Gin log event")
-		return len(p), err
-	}
-
-	// Only write to memory store if there's a correlation ID (i.e., it's from an HTTP request)
-	if logEvent.CorrelationID != "" {
-		// Write to memory writer if available
-		if gw.memoryWriter != nil {
-			_, err = gw.memoryWriter.Write(jsonData)
-			if err != nil {
-				internalLog.Warn().Err(err).Msg("Failed to write to memory writer")
-			}
-		}
-	} else {
-		internalLog.Trace().Msgf("Skipping memory store for Gin log without correlation ID: %s", logContent)
 	}
 
 	internalLog.Trace().Msgf("Processed Gin log: %s", logContent)
@@ -181,12 +158,19 @@ func (gw *ginWriter) GetCorrelationID() string {
 	return gw.correlationID
 }
 
+// ClearCorrelationID sets the correlation ID for the Gin writer
+func (gw *ginWriter) ClearCorrelationID() {
+	gw.correlationMux.Lock()
+	defer gw.correlationMux.Unlock()
+	gw.correlationID = ""
+}
+
 // outputToConsole formats and outputs the log event to console using phuslu with color support
 func (gw *ginWriter) outputToConsole(logEvent *models.LogEvent) {
 	// Create a phuslu console logger with color support
 	consoleLogger := log.Logger{
-		Level:      log.TraceLevel, // Allow all levels through
-		TimeFormat: "15:04:05.000",
+		Level:      gw.config.Level.ToLogLevel(),
+		TimeFormat: gw.config.TimeFormat,
 		Writer: &log.ConsoleWriter{
 			ColorOutput:    true,
 			EndWithMessage: true,

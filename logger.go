@@ -310,13 +310,6 @@ func (l *logger) GetMemoryLogsWithLimit(limit int) (map[string]string, error) {
 func (l *logger) GinWriter() interface{} {
 	internalLog := common.NewLogger().WithContext("function", "Logger.GinWriter").GetLogger()
 
-	// Get memory writer from registry
-	memoryWriter := GetRegisteredMemoryWriter(WRITER_MEMORY)
-	if memoryWriter == nil {
-		internalLog.Warn().Msg("Memory writer not registered -> return nil")
-		return nil
-	}
-
 	// Create default configuration for Gin writer
 	config := models.WriterConfiguration{
 		Type:  models.LogWriterTypeMemory,
@@ -324,8 +317,8 @@ func (l *logger) GinWriter() interface{} {
 	}
 
 	// Create and return Gin writer
-	ginWriter := writers.GinWriter(config, memoryWriter)
-	internalLog.Debug().Msg("Created Gin writer with memory writer integration")
+	ginWriter := writers.GinWriter(config)
+	internalLog.Debug().Msg("Created Gin writer")
 
 	return ginWriter
 }
