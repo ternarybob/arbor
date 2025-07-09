@@ -22,6 +22,9 @@ type ILogger interface {
 
 	WithLevel(lvl LogLevel) ILogger
 
+	// WithLevelFromString applies a log level from a string configuration
+	WithLevelFromString(levelStr string) ILogger
+
 	WithContext(key string, value string) ILogger
 
 	// Copy creates a copy of the logger with the same configuration but clean/empty context

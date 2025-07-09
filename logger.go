@@ -47,9 +47,12 @@ func NewLogger() ILogger {
 // createNewLogger is a helper function that creates a fresh logger instance
 func createNewLogger() ILogger {
 	// Create logger that will use registered writers
-	return &logger{
+	// Start with INFO level as default before configuration is loaded
+	logger := &logger{
 		contextData: make(map[string]string),
 	}
+	logger.WithLevel(InfoLevel) // Initial level
+	return logger
 }
 
 func (l *logger) WithConsoleWriter(configuration models.WriterConfiguration) ILogger {
@@ -153,6 +156,25 @@ func (l *logger) WithPrefix(value string) ILogger {
 	internalLog.Trace().Msgf("Replacing Prefix:%s", value)
 
 	l.WithContext(PREFIX_KEY, value)
+
+	return l
+}
+
+// WithLevelFromString applies a log level from a string configuration
+func (l *logger) WithLevelFromString(levelStr string) ILogger {
+	internalLog := common.NewLogger().WithContext("function", "Logger.WithLevelFromString").GetLogger()
+
+	// Parse and apply log level from string
+	phusluLevel, err := ParseLevelString(levelStr)
+	if err != nil {
+		internalLog.Warn().Err(err).Msgf("Invalid log level '%s', using INFO", levelStr)
+		l.WithLevel(InfoLevel)
+	} else {
+		// Convert phuslu log.Level to our LogLevel
+		arborLevel := LogLevel(phusluLevel)
+		l.WithLevel(arborLevel)
+		internalLog.Debug().Msgf("Set log level to: %s", levelStr)
+	}
 
 	return l
 }
