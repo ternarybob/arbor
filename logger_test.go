@@ -311,3 +311,89 @@ func TestLogger_ChainedUsage(t *testing.T) {
 		t.Error("Chained methods should return the same instance")
 	}
 }
+
+func TestLogger_Copy(t *testing.T) {
+	// Create a logger with some context
+	originalLogger := Logger().WithCorrelationId("original-123").WithPrefix("ORIGINAL")
+
+	// Create a copy
+	copiedLogger := originalLogger.Copy()
+
+	// Verify copy is not nil
+	if copiedLogger == nil {
+		t.Error("Copy should not return nil")
+	}
+
+	// Verify copy is a different instance
+	if originalLogger == copiedLogger {
+		t.Error("Copy should return a different instance")
+	}
+
+	// Verify both loggers implement ILogger interface
+	var _ ILogger = originalLogger
+	var _ ILogger = copiedLogger
+
+	// Verify that the copied logger has NO context data (fresh/clean)
+	// This is the key behavior - Copy should give you a clean logger
+	originalLoggerTyped := originalLogger.(*logger)
+	copiedLoggerTyped := copiedLogger.(*logger)
+
+	// Original should have context data
+	if originalLoggerTyped.contextData == nil || len(originalLoggerTyped.contextData) == 0 {
+		t.Error("Original logger should have context data")
+	}
+
+	// Copied logger should have empty context data (fresh/clean)
+	if copiedLoggerTyped.contextData == nil {
+		t.Error("Copied logger should have initialized (but empty) context data")
+	}
+	if len(copiedLoggerTyped.contextData) != 0 {
+		t.Error("Copied logger should have empty context data (fresh/clean)")
+	}
+
+	// Test that modifying the copy doesn't affect the original
+	copiedLogger.WithCorrelationId("copied-456").WithPrefix("COPIED")
+
+	// Both should still be usable for logging
+	originalEvent := originalLogger.Info().Str("source", "original")
+	copiedEvent := copiedLogger.Info().Str("source", "copied")
+
+	if originalEvent == nil || copiedEvent == nil {
+		t.Error("Both original and copied loggers should be usable for logging")
+	}
+}
+
+func TestLogger_ClearContext(t *testing.T) {
+	// Create a logger and add multiple context items
+	testLogger := NewLogger()
+	testLogger.WithCorrelationId("test-correlation-123")
+	testLogger.WithContext("key1", "value1")
+	testLogger.WithContext("key2", "value2")
+	testLogger.WithPrefix("test-prefix")
+
+	// Cast to internal logger type to access contextData
+	testLoggerTyped := testLogger.(*logger)
+
+	// Verify context is set
+	expectedCount := 4 // correlationid, key1, key2, prefix
+	if len(testLoggerTyped.contextData) != expectedCount {
+		t.Errorf("Logger should have %d context items, got %d. Context: %v", expectedCount, len(testLoggerTyped.contextData), testLoggerTyped.contextData)
+	}
+
+	// Clear all context
+	testLogger.ClearContext()
+
+	// Verify context is cleared
+	if len(testLoggerTyped.contextData) != 0 {
+		t.Errorf("Logger should have empty context after ClearContext(), got %d items", len(testLoggerTyped.contextData))
+	}
+
+	// Verify we can add new context after clearing
+	testLogger.WithCorrelationId("new-correlation-456")
+	if testLoggerTyped.contextData["correlationid"] != "new-correlation-456" {
+		t.Errorf("Logger should accept new context after clearing")
+	}
+	if len(testLoggerTyped.contextData) != 1 {
+		t.Errorf("Logger should have 1 context item after adding new correlation ID, got %d", len(testLoggerTyped.contextData))
+	}
+}

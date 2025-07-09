@@ -6,6 +6,7 @@ import (
 
 	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
+	"github.com/ternarybob/arbor/transformers"
 	"github.com/ternarybob/arbor/writers"
 
 	"github.com/google/uuid"
@@ -115,6 +116,32 @@ func (l *logger) WithCorrelationId(correlationID string) ILogger {
 
 }
 
+// ClearCorrelationId removes the correlation ID from the logger context
+func (l *logger) ClearCorrelationId() ILogger {
+	internalLog := common.NewLogger().WithContext("function", "Logger.ClearCorrelationId").GetLogger()
+
+	// Remove the correlation ID from context data
+	if l.contextData != nil {
+		delete(l.contextData, CORRELATION_ID_KEY)
+		internalLog.Debug().Msg("Cleared correlation ID from logger context")
+	}
+
+	return l
+}
+
+// ClearContext removes all context data from the logger
+func (l *logger) ClearContext() ILogger {
+	internalLog := common.NewLogger().WithContext("function", "Logger.ClearContext").GetLogger()
+
+	// Clear all context data
+	if l.contextData != nil {
+		l.contextData = make(map[string]string)
+		internalLog.Debug().Msg("Cleared all context data from logger")
+	}
+
+	return l
+}
+
 func (l *logger) WithPrefix(value string) ILogger {
 
 	internalLog := common.NewLogger().WithContext("function", "Logger.WithPrefix").GetLogger()
@@ -178,6 +205,15 @@ func (l *logger) WithContext(key string, value string) ILogger {
 	}
 
 	return l
+}
+
+// Copy creates a copy of the logger with the same configuration but fresh/clean context
+// This is useful when you want a logger with the same writers but without any context data
+func (l *logger) Copy() ILogger {
+	// Create a new logger instance with fresh context (no context data copied)
+	newLogger := createNewLogger()
+
+	return newLogger
 }
 
 func (d *logger) getFunctionName() string {
@@ -307,18 +343,12 @@ func (l *logger) GetMemoryLogsWithLimit(limit int) (map[string]string, error) {
 	return memoryWriter.GetEntriesWithLimit(limit)
 }
 
-func (l *logger) GinWriter() interface{} {
+func (l *logger) GinWriter(config models.WriterConfiguration) interface{} {
 	internalLog := common.NewLogger().WithContext("function", "Logger.GinWriter").GetLogger()
 
-	// Create default configuration for Gin writer
-	config := models.WriterConfiguration{
-		Type:  models.LogWriterTypeMemory,
-		Level: InfoLevel,
-	}
+	// Create Gin transformer with provided configuration and registry function
+	ginTransformer := transformers.NewGinTransformer(config, GetAllRegisteredWriters)
+	internalLog.Debug().Msg("Created Gin transformer")
 
-	// Create and return Gin writer
-	ginWriter := writers.GinWriter(config)
-	internalLog.Debug().Msg("Created Gin writer")
-
-	return ginWriter
+	return ginTransformer
 }

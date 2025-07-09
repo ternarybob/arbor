@@ -15,9 +15,18 @@ type ILogger interface {
 
 	WithCorrelationId(value string) ILogger
 
+	ClearCorrelationId() ILogger
+
+	// ClearContext removes all context data from the logger
+	ClearContext() ILogger
+
 	WithLevel(lvl LogLevel) ILogger
 
 	WithContext(key string, value string) ILogger
+
+	// Copy creates a copy of the logger with the same configuration but clean/empty context
+	// This is useful when you want a fresh logger that shares the same writers but has no correlation ID, prefix, or other context
+	Copy() ILogger
 
 	// Fluent logging methods
 	Trace() ILogEvent
@@ -36,6 +45,6 @@ type ILogger interface {
 	// GetMemoryLogsWithLimit retrieves the most recent log entries up to the specified limit
 	GetMemoryLogsWithLimit(limit int) (map[string]string, error)
 
-	// GinWriter returns an io.Writer that integrates Gin logs with arbor's memory writer
-	GinWriter() interface{}
+	// GinWriter returns an io.Writer that integrates Gin logs with arbor's registered writers
+	GinWriter(config models.WriterConfiguration) interface{}
 }
