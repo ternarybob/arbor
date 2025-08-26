@@ -1,5 +1,6 @@
 # arbor
 
+[![CI/CD Pipeline](https://github.com/ternarybob/arbor/actions/workflows/ci.yml/badge.svg)](https://github.com/ternarybob/arbor/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ternarybob/arbor.svg)](https://pkg.go.dev/github.com/ternarybob/arbor)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ternarybob/arbor)](https://goreportcard.com/report/github.com/ternarybob/arbor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -391,6 +392,15 @@ func ConfigureLogger(config LogConfig) arbor.ILogger {
 - **Thread Safety**: All operations are thread-safe with minimal lock contention
 - **Buffer Limits**: Memory writer maintains buffer limits per correlation ID
 - **Log Levels**: Level filtering occurs at writer level for efficiency
+
+## CI/CD
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+- **Automated Testing**: Runs tests on every push and pull request
+- **Code Quality Checks**: Enforces `go fmt`, `go vet`, and build validation
+- **Auto-Release**: Automatically creates releases on main branch pushes
+- **Tagged Releases**: Manual version control via git tags
 
 ## Documentation
 
