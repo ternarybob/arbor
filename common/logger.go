@@ -3,7 +3,7 @@ package common
 import "github.com/phuslu/log"
 
 var (
-	InternalLevel      log.Level = log.DebugLevel
+	InternalLevel      log.Level = log.ErrorLevel
 	InternalTimeFormat string    = "15:04:05.000" // Console logger, should not need the date!
 )
 

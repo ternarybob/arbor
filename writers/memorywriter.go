@@ -1,3 +1,8 @@
+// -----------------------------------------------------------------------
+// Last Modified: Wednesday, 3rd September 2025 3:28:12 pm
+// Modified By: Bob McAllan
+// -----------------------------------------------------------------------
+
 package writers
 
 import (
@@ -32,9 +37,6 @@ var (
 	cleanupMux   sync.Mutex
 	dbInstances  map[string]*bbolt.DB = make(map[string]*bbolt.DB)
 	dbMux        sync.RWMutex
-
-	// Internal logger for debugging
-	memoryLogLevel log.Level = log.DebugLevel
 )
 
 type memoryWriter struct {
