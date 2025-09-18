@@ -277,6 +277,62 @@ func TestFileWriter_InterfaceCompliance(t *testing.T) {
 	})
 }
 
+func TestFileWriter_TextOutput(t *testing.T) {
+	tempDir := setupTempDir(t)
+	defer cleanupTempDir(t)
+
+	config := models.WriterConfiguration{
+		Type:       models.LogWriterTypeFile,
+		Level:      levels.InfoLevel,
+		TimeFormat: "15:04:05.000",
+		FileName:   filepath.Join(tempDir, "text_test.log"),
+		TextOutput: true, // Enable text output format
+	}
+
+	writer := FileWriter(config)
+	if writer == nil {
+		t.Fatal("FileWriter should not return nil")
+	}
+
+	// Write a test log entry
+	testData := []byte(`{"level":"info","message":"test message","correlationid":"test-123","prefix":"TEST"}`)
+	n, err := writer.Write(testData)
+	if err != nil {
+		t.Errorf("Write should not return error: %v", err)
+	}
+	if n != len(testData) {
+		t.Errorf("Expected %d bytes written, got %d", len(testData), n)
+	}
+}
+
+func TestFileWriter_JsonOutput(t *testing.T) {
+	tempDir := setupTempDir(t)
+	defer cleanupTempDir(t)
+
+	config := models.WriterConfiguration{
+		Type:       models.LogWriterTypeFile,
+		Level:      levels.InfoLevel,
+		TimeFormat: "15:04:05.000",
+		FileName:   filepath.Join(tempDir, "json_test.log"),
+		TextOutput: false, // Default JSON output format
+	}
+
+	writer := FileWriter(config)
+	if writer == nil {
+		t.Fatal("FileWriter should not return nil")
+	}
+
+	// Write a test log entry
+	testData := []byte(`{"level":"info","message":"test message","correlationid":"test-123","prefix":"TEST"}`)
+	n, err := writer.Write(testData)
+	if err != nil {
+		t.Errorf("Write should not return error: %v", err)
+	}
+	if n != len(testData) {
+		t.Errorf("Expected %d bytes written, got %d", len(testData), n)
+	}
+}
+
 func TestMaxLogSize_Constant(t *testing.T) {
 	expectedSize := int64(10 * 1024 * 1024) // 10 MB
 	if MaxLogSize != expectedSize {

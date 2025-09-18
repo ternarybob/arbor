@@ -83,6 +83,7 @@ logger := arbor.Logger().
         MaxSize:    10 * 1024 * 1024, // 10MB
         MaxBackups: 5,
         TimeFormat: "2006-01-02 15:04:05.000",
+        TextOutput: true, // Enable human-readable text format (default: false for JSON)
     }).
     WithMemoryWriter(models.WriterConfiguration{
         Type:       models.LogWriterTypeMemory,
@@ -91,6 +92,57 @@ logger := arbor.Logger().
 
 logger.Info().Msg("This goes to console, file, and memory")
 ```
+
+## File Writer Configuration
+
+The file writer supports both JSON and human-readable text output formats.
+
+### JSON Output Format (Default)
+
+```go
+logger := arbor.Logger().
+    WithFileWriter(models.WriterConfiguration{
+        Type:       models.LogWriterTypeFile,
+        FileName:   "logs/app.log",
+        TimeFormat: "2006-01-02 15:04:05.000",
+        TextOutput: false, // JSON format (default)
+    })
+
+logger.Info().Str("user", "john").Msg("User logged in")
+```
+
+**Output:**
+```json
+{"time":"2025-09-18 15:04:05.123","level":"info","user":"john","message":"User logged in"}
+```
+
+### Text Output Format
+
+```go
+logger := arbor.Logger().
+    WithFileWriter(models.WriterConfiguration{
+        Type:       models.LogWriterTypeFile,
+        FileName:   "logs/app.log",
+        TimeFormat: "15:04:05.000",
+        TextOutput: true, // Human-readable text format
+    })
+
+logger.Info().Str("user", "john").Msg("User logged in")
+```
+
+**Output:**
+```
+15:04:05.123 INF > User logged in user=john
+```
+
+### File Writer Options
+
+- **`FileName`**: Log file path (default: "logs/main.log")
+- **`MaxSize`**: Maximum file size in bytes before rotation (default: 10MB)
+- **`MaxBackups`**: Number of backup files to keep (default: 5)
+- **`TextOutput`**: Enable human-readable format instead of JSON (default: false)
+- **`TimeFormat`**: Timestamp format for log entries
+- **`Level`**: Minimum log level to write
 
 ## Log Levels
 
@@ -354,33 +406,35 @@ type LogConfig struct {
     File       string `json:"file"`
     Memory     bool   `json:"memory"`
     TimeFormat string `json:"time_format"`
+    TextOutput bool   `json:"text_output"`
 }
 
 func ConfigureLogger(config LogConfig) arbor.ILogger {
     logger := arbor.NewLogger()
-    
+
     if config.Console {
         logger.WithConsoleWriter(models.WriterConfiguration{
             Type:       models.LogWriterTypeConsole,
             TimeFormat: config.TimeFormat,
         })
     }
-    
+
     if config.File != "" {
         logger.WithFileWriter(models.WriterConfiguration{
             Type:       models.LogWriterTypeFile,
             FileName:   config.File,
             TimeFormat: config.TimeFormat,
+            TextOutput: config.TextOutput, // Enable text format for files
         })
     }
-    
+
     if config.Memory {
         logger.WithMemoryWriter(models.WriterConfiguration{
             Type:       models.LogWriterTypeMemory,
             TimeFormat: config.TimeFormat,
         })
     }
-    
+
     return logger.WithLevelFromString(config.Level)
 }
 ```

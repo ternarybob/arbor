@@ -57,6 +57,9 @@ rm -rf temp/
 
 # Run memory writer specific tests
 go test -v ./writers -run MemoryWriter
+
+# Clean up all test artifacts
+rm -rf temp/ && go clean -testcache
 ```
 
 ## Architecture Overview
@@ -72,7 +75,7 @@ go test -v ./writers -run MemoryWriter
 - `IWriter` interface: Basic write functionality with level filtering
 - `IMemoryWriter` interface: Extends IWriter with retrieval capabilities
 - Console Writer: Colored output using phuslu backend
-- File Writer: Rotation, backup, size management
+- File Writer: Rotation, backup, size management, configurable JSON/text output format
 - Memory Writer: BoltDB persistence with TTL and cleanup
 
 **Global Registry (`registry.go`, `iregistry.go`)**
@@ -99,7 +102,7 @@ go test -v ./writers -run MemoryWriter
 
 **Memory Persistence**: BoltDB-backed storage with automatic TTL cleanup for log retrieval and debugging
 
-**Framework Integration**: Gin transformer converts framework logs to arbor format while preserving correlation context
+**Framework Integration**: Gin transformer (`transformers/gintransformer.go`) converts framework logs to arbor format while preserving correlation context
 
 ## Important Implementation Details
 
@@ -134,3 +137,19 @@ Tests are organized by component with comprehensive coverage:
 - Registry thread-safety validation
 
 Most tests create isolated instances to avoid global state conflicts. Memory writer tests may create temporary BoltDB files that should be cleaned up.
+
+## Package Structure
+
+### Core Packages
+- **Root (`/`)**: Main logger interface and implementation, registry, log events
+- **`writers/`**: All writer implementations (console, file, memory) and interfaces
+- **`models/`**: Data structures (WriterConfiguration, LogEvent, GinLogEvent)
+- **`levels/`**: Log level definitions and string parsing utilities
+- **`transformers/`**: Framework integrations (Gin transformer)
+- **`common/`**: Shared utilities and internal logging
+
+### Key Constants and Configuration
+- **Memory Writer**: Buffer limit 1000 entries per correlation ID, 10-minute TTL, 1-minute cleanup interval
+- **BoltDB Files**: Date-based naming (`temp/arbor_logs_YYMMDD.db`)
+- **File Writer**: Supports JSON (default) and text output formats via `TextOutput` configuration
+- **Global State**: Shared database instances with mutex protection

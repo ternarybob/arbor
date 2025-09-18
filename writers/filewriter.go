@@ -56,10 +56,21 @@ func (fw *fileWriter) initPhusluWriter(fileName string, maxSize int64, maxBackup
 		LocalTime:    true,
 	}
 
+	// Configure output format based on TextOutput setting
+	var writer log.Writer = phusluFileWriter
+	if fw.config.TextOutput {
+		// Use ConsoleWriter for human-readable text format, but output to file
+		writer = &log.ConsoleWriter{
+			Writer:         phusluFileWriter,
+			ColorOutput:    false, // No colors in file output
+			EndWithMessage: true,
+		}
+	}
+
 	fw.logger = log.Logger{
 		Level:      fw.config.Level.ToLogLevel(),
 		TimeFormat: fw.config.TimeFormat,
-		Writer:     phusluFileWriter,
+		Writer:     writer,
 	}
 }
 
