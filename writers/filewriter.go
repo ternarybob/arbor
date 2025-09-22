@@ -90,6 +90,11 @@ func (fw *fileWriter) WithLevel(level log.Level) IWriter {
 	return fw
 }
 
+// GetFilePath returns the configured file path for this file writer
+func (fw *fileWriter) GetFilePath() string {
+	return fw.fileName
+}
+
 func (fw *fileWriter) Write(data []byte) (n int, err error) {
 	n = len(data)
 	if n <= 0 {

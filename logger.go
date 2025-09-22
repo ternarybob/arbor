@@ -374,3 +374,15 @@ func (l *logger) GinWriter(config models.WriterConfiguration) interface{} {
 
 	return ginTransformer
 }
+
+// GetLogFilePath returns the configured log file path if a file writer is registered
+func (l *logger) GetLogFilePath() string {
+	// Get file writer from registry
+	fileWriter := GetRegisteredWriter(WRITER_FILE)
+	if fileWriter == nil {
+		return "" // No file writer registered
+	}
+
+	// Use the GetFilePath method from the writer interface
+	return fileWriter.GetFilePath()
+}

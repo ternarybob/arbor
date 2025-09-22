@@ -50,4 +50,7 @@ type ILogger interface {
 
 	// GinWriter returns an io.Writer that integrates Gin logs with arbor's registered writers
 	GinWriter(config models.WriterConfiguration) interface{}
+
+	// GetLogFilePath returns the configured log file path if a file writer is registered
+	GetLogFilePath() string
 }

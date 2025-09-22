@@ -126,6 +126,11 @@ func (mw *memoryWriter) WithLevel(level log.Level) IWriter {
 	return mw
 }
 
+// GetFilePath returns empty string as memory writer doesn't write to files
+func (mw *memoryWriter) GetFilePath() string {
+	return ""
+}
+
 func (mw *memoryWriter) Write(entry []byte) (int, error) {
 
 	internalLog := common.NewLogger().WithContext("function", "MemoryWriter.Write").GetLogger()

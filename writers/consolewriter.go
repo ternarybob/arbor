@@ -52,6 +52,11 @@ func (cw *consoleWriter) WithLevel(level log.Level) IWriter {
 	return cw
 }
 
+// GetFilePath returns empty string as console writer doesn't write to files
+func (cw *consoleWriter) GetFilePath() string {
+	return ""
+}
+
 func (cw *consoleWriter) Write(data []byte) (n int, err error) {
 	n = len(data)
 	if n <= 0 {
