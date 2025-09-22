@@ -90,8 +90,11 @@ func (fw *fileWriter) WithLevel(level log.Level) IWriter {
 	return fw
 }
 
-// GetFilePath returns the configured file path for this file writer
+// GetFilePath returns the configured file path (phuslu creates timestamped files automatically)
 func (fw *fileWriter) GetFilePath() string {
+	// Return the base configured filename
+	// Note: phuslu FileWriter actually creates timestamped files like: name.YYYY-MM-DDTHH-MM-SS.ext
+	// but doesn't expose the current filename through its API
 	return fw.fileName
 }
 
