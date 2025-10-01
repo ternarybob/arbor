@@ -87,11 +87,22 @@ func (l *logger) WithMemoryWriter(configuration models.WriterConfiguration) ILog
 
 	internalLog := common.NewLogger().WithContext("function", "Logger.WithMemoryWriter").GetLogger()
 
-	// Create and register the memory writer
+	// Create the memory writer (which creates the underlying store)
 	memoryWriter := writers.MemoryWriter(configuration)
+
+	// Get the store from the memory writer
+	store := memoryWriter.GetStore()
+
+	// Create a LogStoreWriter to handle actual writes to the store
+	logStoreWriter := writers.LogStoreWriter(store, configuration)
+
+	// Register both:
+	// - LogStoreWriter handles writing log events to the store
+	// - MemoryWriter provides query interface
+	RegisterWriter(WRITER_MEMORY+"_store", logStoreWriter)
 	RegisterWriter(WRITER_MEMORY, memoryWriter)
 
-	internalLog.Trace().Msg("Memory writer registered successfully.")
+	internalLog.Trace().Msg("Memory writer and log store registered successfully.")
 
 	return l
 

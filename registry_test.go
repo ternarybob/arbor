@@ -2,6 +2,7 @@ package arbor
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ternarybob/arbor/models"
 	"github.com/ternarybob/arbor/writers"
@@ -90,6 +91,9 @@ func TestLoggerWithRegisteredWriters(t *testing.T) {
 
 	// Test logging
 	logger.Info().Msg("Test message")
+
+	// Give async processing time to complete
+	time.Sleep(50 * time.Millisecond)
 
 	// Verify the message was written to the registered memory writer
 	logs, err := logger.GetMemoryLogs("test-correlation", DebugLevel)

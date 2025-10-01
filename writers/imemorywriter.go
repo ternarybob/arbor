@@ -1,6 +1,11 @@
 package writers
 
-import "github.com/phuslu/log"
+import (
+	"time"
+
+	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/models"
+)
 
 // IMemoryWriter extends IWriter with memory-specific operations
 type IMemoryWriter interface {
@@ -20,6 +25,12 @@ type IMemoryWriter interface {
 
 	// GetEntriesWithLimit retrieves the most recent log entries up to the specified limit
 	GetEntriesWithLimit(limit int) (map[string]string, error)
+
+	// GetEntriesSince retrieves all log entries since a given timestamp (for WebSocket queries)
+	GetEntriesSince(since time.Time) ([]models.LogEvent, error)
+
+	// GetStore returns the underlying log store for use with other writers
+	GetStore() ILogStore
 
 	// Close closes the memory writer and any underlying resources
 	Close() error

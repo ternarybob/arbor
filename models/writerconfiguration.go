@@ -25,4 +25,5 @@ type WriterConfiguration struct {
 	MaxBackups       int             `json:"maxfiles,omitempty"`
 	DisableTimestamp bool            `json:"disabletimestamp,omitempty"`
 	TextOutput       bool            `json:"textoutput,omitempty"`
+	DBPath           string          `json:"dbpath,omitempty"`
 }
