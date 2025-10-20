@@ -34,4 +34,7 @@ type ILogEvent interface {
 
 	// Float64 field method
 	Float64(key string, value float64) ILogEvent
+
+	// Bool field method
+	Bool(key string, value bool) ILogEvent
 }

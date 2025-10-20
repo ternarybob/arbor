@@ -10,7 +10,10 @@
       "Bash(git push:*)",
       "Bash(gofmt:*)",
       "Bash(test:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(curl \"https://proxy.golang.org/github.com/ternarybob/arbor/@v/v1.4.45.info\")",
+      "Bash(curl \"https://proxy.golang.org/github.com/ternarybob/arbor/@v/list\")",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

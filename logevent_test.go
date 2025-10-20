@@ -81,6 +81,51 @@ func TestLogEvent_Str(t *testing.T) {
 	}
 }
 
+func TestLogEvent_Bool(t *testing.T) {
+	logger := Logger().(*logger)
+	event := newLogEvent(logger, log.InfoLevel)
+
+	// Test adding a boolean field
+	result := event.Bool("isEnabled", true)
+	if result == nil {
+		t.Error("Bool should not return nil")
+	}
+
+	// Should return the same instance for chaining
+	if result != event {
+		t.Error("Bool should return the same instance for chaining")
+	}
+
+	// Test that field was added with correct value
+	if event.fields["isEnabled"] != true {
+		t.Error("Boolean field should be added to the event with value true")
+	}
+
+	// Test chaining multiple boolean fields
+	event.Bool("isActive", false).Bool("hasPermission", true)
+
+	if len(event.fields) != 3 {
+		t.Errorf("Expected 3 fields, got %d", len(event.fields))
+	}
+
+	if event.fields["isActive"] != false {
+		t.Error("Second boolean field should be false")
+	}
+
+	if event.fields["hasPermission"] != true {
+		t.Error("Third boolean field should be true")
+	}
+
+	// Test chaining with other field types
+	event.Str("component", "auth").Bool("authenticated", true)
+	if event.fields["component"] != "auth" {
+		t.Error("Should be able to chain Str and Bool methods")
+	}
+	if event.fields["authenticated"] != true {
+		t.Error("Boolean field should be set when chained with other methods")
+	}
+}
+
 func TestLogEvent_Err(t *testing.T) {
 	logger := Logger().(*logger)
 	event := newLogEvent(logger, log.ErrorLevel)
@@ -195,11 +240,13 @@ func TestLogEvent_EndToEnd(t *testing.T) {
 	// Test Msgf method
 	logger.Warn().Err(errors.New("test error")).Msgf("formatted message %s %d", "test", 123)
 
-	// Test with multiple fields
+	// Test with multiple fields including bool
 	logger.Error().
 		Str("user", "john").
 		Str("action", "delete").
 		Str("resource", "file.txt").
+		Bool("authenticated", true).
+		Bool("authorized", false).
 		Err(errors.New("permission denied")).
 		Msg("Operation failed")
 }

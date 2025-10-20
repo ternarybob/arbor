@@ -80,6 +80,12 @@ func (le *logEvent) Float64(key string, value float64) ILogEvent {
 	return le
 }
 
+// Bool adds a boolean field to the log event
+func (le *logEvent) Bool(key string, value bool) ILogEvent {
+	le.fields[key] = value
+	return le
+}
+
 // Msg logs the message with the accumulated fields
 func (le *logEvent) Msg(message string) {
 	le.writeLog(message)
