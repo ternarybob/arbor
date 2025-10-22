@@ -92,17 +92,17 @@ func NewInMemoryLogStore(config models.WriterConfiguration) (ILogStore, error) {
 
 // initPersistence sets up BoltDB
 func (s *inMemoryLogStore) initPersistence() error {
-	// Ensure directory exists
-	dir := filepath.Dir(s.dbPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create persistence directory: %w", err)
-	}
-
 	// Create date-based database filename if not fully specified
 	if !strings.HasSuffix(s.dbPath, ".db") {
 		now := time.Now()
 		dateStr := now.Format("060102") // YYMMDD format
 		s.dbPath = filepath.Join(s.dbPath, fmt.Sprintf("arbor_logs_%s.db", dateStr))
+	}
+
+	// Ensure directory exists (after finalizing the path)
+	dir := filepath.Dir(s.dbPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create persistence directory: %w", err)
 	}
 
 	// Open BoltDB

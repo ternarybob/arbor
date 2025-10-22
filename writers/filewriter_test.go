@@ -334,7 +334,7 @@ func TestFileWriter_JsonOutput(t *testing.T) {
 }
 
 func TestMaxLogSize_Constant(t *testing.T) {
-	expectedSize := int64(10 * 1024 * 1024) // 10 MB
+	expectedSize := int64(500 * 1024) // 500 KB - optimized for AI agent consumption
 	if MaxLogSize != expectedSize {
 		t.Errorf("Expected MaxLogSize to be %d, got %d", expectedSize, MaxLogSize)
 	}
