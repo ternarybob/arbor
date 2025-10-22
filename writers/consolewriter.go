@@ -119,3 +119,7 @@ func (cw *consoleWriter) Write(data []byte) (n int, err error) {
 
 	return n, nil
 }
+
+func (cw *consoleWriter) Close() error {
+	return nil
+}

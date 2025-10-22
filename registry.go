@@ -1,6 +1,7 @@
 package arbor
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ternarybob/arbor/writers"
@@ -25,6 +26,32 @@ var _ IWriterRegistry = (*WriterRegistry)(nil)
 // Global writer registry instance
 var globalWriterRegistry = &WriterRegistry{
 	writers: make(map[string]writers.IWriter),
+}
+
+// Global registry for active function loggers to prevent duplicates.
+var (
+	activeFunctionLoggers    = make(map[string]bool)
+	activeFunctionLoggersMux sync.Mutex
+)
+
+// RegisterFunctionLogger adds a correlation ID to the active function logger registry.
+// It returns an error if the correlation ID is already registered.
+func RegisterFunctionLogger(correlationID string) error {
+	activeFunctionLoggersMux.Lock()
+	defer activeFunctionLoggersMux.Unlock()
+
+	if activeFunctionLoggers[correlationID] {
+		return fmt.Errorf("a function logger with correlation ID '%s' is already active", correlationID)
+	}
+	activeFunctionLoggers[correlationID] = true
+	return nil
+}
+
+// UnregisterFunctionLogger removes a correlation ID from the active function logger registry.
+func UnregisterFunctionLogger(correlationID string) {
+	activeFunctionLoggersMux.Lock()
+	defer activeFunctionLoggersMux.Unlock()
+	delete(activeFunctionLoggers, correlationID)
 }
 
 // RegisterWriter registers a writer with the given name in the registry

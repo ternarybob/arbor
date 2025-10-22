@@ -160,3 +160,10 @@ func (fw *fileWriter) Write(data []byte) (n int, err error) {
 
 	return n, nil
 }
+
+func (fw *fileWriter) Close() error {
+	if fileWriter, ok := fw.logger.Writer.(*log.FileWriter); ok {
+		return fileWriter.Close()
+	}
+	return nil
+}

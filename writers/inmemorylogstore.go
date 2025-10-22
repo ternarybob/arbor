@@ -47,6 +47,8 @@ type inMemoryLogStore struct {
 	cleanupTicker *time.Ticker
 	cleanupStop   chan bool
 	indexCounter  uint64
+	closeOnce     sync.Once
+	closeErr      error
 }
 
 // StoredLogEntry wraps a log event with expiration metadata
@@ -400,23 +402,24 @@ func (s *inMemoryLogStore) cleanupBoltDB(cutoff time.Time) {
 
 // Close shuts down the log store
 func (s *inMemoryLogStore) Close() error {
-	// Stop cleanup
-	if s.cleanupTicker != nil {
-		s.cleanupTicker.Stop()
-	}
-	if s.cleanupStop != nil {
-		close(s.cleanupStop)
-	}
+	s.closeOnce.Do(func() {
+		// Stop cleanup
+		if s.cleanupTicker != nil {
+			s.cleanupTicker.Stop()
+		}
+		if s.cleanupStop != nil {
+			close(s.cleanupStop)
+		}
 
-	// Close persist buffer
-	if s.persistBuffer != nil {
-		close(s.persistBuffer)
-	}
+		// Close persist buffer
+		if s.persistBuffer != nil {
+			close(s.persistBuffer)
+		}
 
-	// Close BoltDB
-	if s.db != nil {
-		return s.db.Close()
-	}
-
-	return nil
+		// Close BoltDB
+		if s.db != nil {
+			s.closeErr = s.db.Close()
+		}
+	})
+	return s.closeErr
 }

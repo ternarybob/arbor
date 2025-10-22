@@ -2,9 +2,13 @@ package arbor
 
 import (
 	"github.com/ternarybob/arbor/models"
+	"github.com/ternarybob/arbor/writers"
 )
 
 type ILogger interface {
+	WithFunctionLogger(correlationID string, config models.WriterConfiguration) (ILogger, func() (map[string]string, error), func() error, error)
+	WithWriters(writers []writers.IWriter) ILogger
+
 	WithConsoleWriter(config models.WriterConfiguration) ILogger
 
 	WithFileWriter(config models.WriterConfiguration) ILogger

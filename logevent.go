@@ -125,10 +125,19 @@ func (le *logEvent) writeLog(message string) {
 	// Add function name
 	logEvent.Function = le.logger.getFunctionName()
 
-	// Write to all registered writers
 	// Marshal once and send to all writers
-	registeredWriters := GetAllRegisteredWriters()
-	if jsonData, err := json.Marshal(logEvent); err == nil {
+	jsonData, err := json.Marshal(logEvent)
+	if err != nil {
+		return // Or handle error appropriately
+	}
+
+	// If the logger has its own writers, use them. Otherwise, use the global registry.
+	if le.logger.writers != nil {
+		for _, writer := range le.logger.writers {
+			writer.Write(jsonData)
+		}
+	} else {
+		registeredWriters := GetAllRegisteredWriters()
 		for _, writer := range registeredWriters {
 			writer.Write(jsonData)
 		}

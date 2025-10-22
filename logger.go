@@ -23,6 +23,7 @@ const (
 
 // logger is the main arbor logger implementation that supports multiple writers
 type logger struct {
+	writers     []writers.IWriter // Private writers for this logger instance
 	contextData map[string]string // Track context key-value pairs
 }
 
@@ -53,6 +54,60 @@ func createNewLogger() ILogger {
 	}
 	logger.WithLevel(InfoLevel) // Initial level
 	return logger
+}
+
+func (l *logger) WithFunctionLogger(correlationID string, config models.WriterConfiguration) (ILogger, func() (map[string]string, error), func() error, error) {
+	// Try to register the correlation ID to ensure it's unique.
+	if err := RegisterFunctionLogger(correlationID); err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Create a new memory writer and log store writer for this function logger.
+	memoryWriter := writers.MemoryWriter(config)
+	logStoreWriter := writers.LogStoreWriter(memoryWriter.GetStore(), config)
+
+	// Get all the existing global writers.
+	globalWriters := GetAllRegisteredWriters()
+	newWriters := make([]writers.IWriter, 0, len(globalWriters)+1)
+	for _, writer := range globalWriters {
+		newWriters = append(newWriters, writer)
+	}
+	newWriters = append(newWriters, logStoreWriter)
+
+	// Create a copy of the logger and configure it.
+	functionLogger := l.Copy().
+		WithCorrelationId(correlationID).
+		WithWriters(newWriters)
+
+	// Define the extractor function.
+	extractor := func() (map[string]string, error) {
+		return memoryWriter.GetEntries(correlationID)
+	}
+
+	// Define the cleanup function.
+	cleanup := func() error {
+		// Unregister the function logger from the active registry first.
+		UnregisterFunctionLogger(correlationID)
+
+		var err1, err2 error
+		if logStoreWriter != nil {
+			err1 = logStoreWriter.Close()
+		}
+		if memoryWriter != nil {
+			err2 = memoryWriter.Close()
+		}
+		if err1 != nil {
+			return err1
+		}
+		return err2
+	}
+
+	return functionLogger, extractor, cleanup, nil
+}
+
+func (l *logger) WithWriters(writers []writers.IWriter) ILogger {
+	l.writers = writers
+	return l
 }
 
 func (l *logger) WithConsoleWriter(configuration models.WriterConfiguration) ILogger {
@@ -193,20 +248,27 @@ func (l *logger) WithLevelFromString(levelStr string) ILogger {
 func (l *logger) WithLevel(level LogLevel) ILogger {
 
 	internalLog := common.NewLogger().WithContext("function", "Logger.WithLevel").GetLogger()
-	internalLog.Trace().Msg("Iterating over registered writers")
-
-	// Get all registered writers
-	registeredWriters := GetAllRegisteredWriters()
-	if len(registeredWriters) == 0 {
-		internalLog.Trace().Msg("No writers registered.")
-		return l
-	}
-
 	lvl := ParseLogLevel(int(level))
 
-	for key, writer := range registeredWriters {
-		internalLog.Trace().Msgf("Key: \"%s\", Writer Type: %T\n", key, writer)
-		writer.WithLevel(lvl)
+	// If the logger has its own writers, use them. Otherwise, use the global registry.
+	if l.writers != nil {
+		internalLog.Trace().Msg("Iterating over private writers")
+		for _, writer := range l.writers {
+			writer.WithLevel(lvl)
+		}
+	} else {
+		internalLog.Trace().Msg("Iterating over registered writers")
+		// Get all registered writers
+		registeredWriters := GetAllRegisteredWriters()
+		if len(registeredWriters) == 0 {
+			internalLog.Trace().Msg("No writers registered.")
+			return l
+		}
+
+		for key, writer := range registeredWriters {
+			internalLog.Trace().Msgf("Key: \"%s\", Writer Type: %T\n", key, writer)
+			writer.WithLevel(lvl)
+		}
 	}
 
 	return l
