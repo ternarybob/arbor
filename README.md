@@ -81,8 +81,8 @@ logger := arbor.Logger().
     WithFileWriter(models.WriterConfiguration{
         Type:       models.LogWriterTypeFile,
         FileName:   "logs/app.log",
-        MaxSize:    10 * 1024 * 1024, // 10MB
-        MaxBackups: 5,
+        MaxSize:    500 * 1024, // 500KB (default) - AI-friendly size
+        MaxBackups: 20,         // 20 files (default) - maintains ~10MB history
         TimeFormat: "2006-01-02 15:04:05.000",
         TextOutput: true, // Enable human-readable text format (default: false for JSON)
     }).
@@ -139,11 +139,32 @@ logger.Info().Str("user", "john").Msg("User logged in")
 ### File Writer Options
 
 - **`FileName`**: Log file path (default: "logs/main.log")
-- **`MaxSize`**: Maximum file size in bytes before rotation (default: 10MB)
-- **`MaxBackups`**: Number of backup files to keep (default: 5)
+- **`MaxSize`**: Maximum file size in bytes before rotation (default: 500KB)
+- **`MaxBackups`**: Number of backup files to keep (default: 20)
 - **`TextOutput`**: Enable human-readable format instead of JSON (default: false)
 - **`TimeFormat`**: Timestamp format for log entries
 - **`Level`**: Minimum log level to write
+
+### AI-Friendly Log File Sizing
+
+The default configuration is optimized for AI agent consumption:
+
+- **500KB per file**: Approximately 3,300 log lines at ~150 bytes per line
+- **20 backup files**: Maintains ~10MB total log history across all files
+- **Automatic rotation**: New files created when size limit is reached
+- **Timestamped backups**: Each rotated file includes timestamp in filename
+
+This configuration ensures log files remain within AI context windows while maintaining sufficient history for debugging and analysis. For high-volume production systems, you may want to increase `MaxSize` and adjust `MaxBackups` accordingly:
+
+```go
+// Example: Larger files for high-volume systems
+WithFileWriter(models.WriterConfiguration{
+    Type:       models.LogWriterTypeFile,
+    FileName:   "logs/app.log",
+    MaxSize:    5 * 1024 * 1024, // 5MB per file
+    MaxBackups: 10,               // Keep 10 backups (~50MB total)
+})
+```
 
 ## Log Levels
 

@@ -10,7 +10,15 @@ import (
 )
 
 const (
-	MaxLogSize int64 = 10 * 1024 * 1024 // 10 MB
+	// MaxLogSize default is 500KB - optimized for AI agent consumption
+	// At ~150 bytes per log line, this allows approximately 3,300 lines per file
+	// which is well within most AI context windows while maintaining readability
+	MaxLogSize int64 = 500 * 1024 // 500 KB
+
+	// DefaultMaxBackups keeps 20 backup files by default
+	// With 500KB files, this provides ~10MB total log history (20 * 500KB)
+	// spanning multiple days of activity while remaining manageable
+	DefaultMaxBackups int = 20
 )
 
 type fileWriter struct {
@@ -23,7 +31,7 @@ func FileWriter(config models.WriterConfiguration) IWriter {
 
 	maxBackups := config.MaxBackups
 	if maxBackups < 1 {
-		maxBackups = 5
+		maxBackups = DefaultMaxBackups
 	}
 
 	maxSize := config.MaxSize
