@@ -19,7 +19,7 @@ func TestGlobalWriterRegistry(t *testing.T) {
 	fileConfig := models.WriterConfiguration{
 		Type:       models.LogWriterTypeFile,
 		TimeFormat: "01-02 15:04:05.000",
-		FileName:   "test.log",
+		FileName:   "temp/test.log",
 	}
 
 	fileWriter := writers.FileWriter(fileConfig)

@@ -39,9 +39,9 @@ func (l *logger) SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSiz
 	common.Start(ch, batchSize, flushInterval)
 }
 
-// ForContext creates a logger for a specific context (e.g., a job ID).
+// WithContextWriter creates a logger for a specific context (e.g., a job ID).
 // It logs to both the standard writers and the configured context channel.
-func (l *logger) ForContext(contextID string) ILogger {
+func (l *logger) WithContextWriter(contextID string) ILogger {
 	// Create a new writer that will send logs to the context buffer.
 	contextWriter := writers.NewContextWriter()
 

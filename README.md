@@ -197,7 +197,7 @@ This approach is ideal for:
 ### How It Works
 
 1.  **Consumer Sets a Channel**: At startup, your application's consumer creates a channel that accepts log batches (`chan []models.LogEvent`) and registers it with `arbor`.
-2.  **Producers Log with Context**: Any part of your application, in any goroutine, can get a context-specific logger by calling `logger.ForContext("your-job-id")`.
+2.  **Producers Log with Context**: Any part of your application, in any goroutine, can get a context-specific logger by calling `logger.WithContextWriter("your-job-id")`.
 3.  **Additive Logging**: The context logger writes to all standard writers (like console and file) **and** sends a copy of the log to an internal buffer.
 4.  **Batching and Streaming**: A background process batches the logs from the internal buffer and sends them as a slice to your consumer's channel. This is efficient and reduces channel contention.
 
@@ -294,7 +294,7 @@ func main() {
     wgProducers.Add(1)
     go func() {
         defer wgProducers.Done()
-        jobLogger := logger.ForContext(jobID)
+        jobLogger := logger.WithContextWriter(jobID)
         jobLogger.Info().Msg("Step 1: Validating input.")
         time.Sleep(10 * time.Millisecond)
         jobLogger.Info().Msg("Step 2: Processing data.")
@@ -304,7 +304,7 @@ func main() {
     wgProducers.Add(1)
     go func() {
         defer wgProducers.Done()
-        jobLogger := logger.ForContext(jobID)
+        jobLogger := logger.WithContextWriter(jobID)
         time.Sleep(20 * time.Millisecond)
         jobLogger.Warn().Msg("Step 3: A non-critical error occurred.")
         time.Sleep(10 * time.Millisecond)
@@ -322,7 +322,7 @@ func main() {
 
 ## Memory Logging & Retrieval
 
-**Note:** For capturing logs related to a specific function or request, the recommended approach is to use `ForContext` as described in the section above.
+**Note:** For capturing logs related to a specific function or request, the recommended approach is to use `WithContextWriter` as described in the section above.
 
 Arbor provides a powerful in-memory log store with optional BoltDB persistence for general-purpose debugging and log retrieval.
 

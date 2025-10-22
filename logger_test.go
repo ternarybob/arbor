@@ -107,7 +107,7 @@ func TestLogger_WithFileWriter(t *testing.T) {
 		Type:       models.LogWriterTypeFile,
 		Level:      InfoLevel,
 		TimeFormat: "15:04:05.000",
-		FileName:   "test.log",
+		FileName:   "temp/test.log",
 	}
 
 	newLogger := logger.WithFileWriter(config)

@@ -42,7 +42,7 @@ func TestContextLogger_Integration(t *testing.T) {
 
 	// 4. Create a context logger.
 	contextID := "job-123"
-	contextLogger := arbor.Logger().ForContext(contextID)
+	contextLogger := arbor.Logger().WithContextWriter(contextID)
 
 	// 5. Log enough messages to trigger a batch flush.
 	contextLogger.Info().Msg("Message 1")
