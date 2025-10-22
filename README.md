@@ -185,54 +185,64 @@ logger.WithCorrelationId("") // Generates UUID automatically
 logger.ClearCorrelationId()
 ```
 
-## Function-Specific Logging
+## Context-Specific Logging
 
-For scenarios where you need to capture all logs for a specific function or thread (e.g., a single API request) while still logging to the standard writers, use `WithFunctionLogger`. This method provides an in-memory log store for a specific correlation ID without interfering with other concurrent functions.
+For long-running processes, jobs, or any scenario where you need to stream all logs for a specific context (e.g., a `jobId`) to a durable store, `arbor` provides a context logging feature. This allows a consumer (e.g., a database writer) to receive all logs for multiple contexts on a single channel, in batches.
 
 This approach is ideal for:
-- Debugging specific requests in a production environment.
-- Attaching a snapshot of all logs to an API response.
-- Auditing the full lifecycle of a single operation.
+- Auditing all actions related to a specific job or entity.
+- Persisting logs for long-running background tasks.
+- Building custom log processing and analysis pipelines.
+
+### How It Works
+
+1.  **Consumer Sets a Channel**: At startup, your application's consumer creates a channel that accepts log batches (`chan []models.LogEvent`) and registers it with `arbor`.
+2.  **Producers Log with Context**: Any part of your application, in any goroutine, can get a context-specific logger by calling `logger.ForContext("your-job-id")`.
+3.  **Additive Logging**: The context logger writes to all standard writers (like console and file) **and** sends a copy of the log to an internal buffer.
+4.  **Batching and Streaming**: A background process batches the logs from the internal buffer and sends them as a slice to your consumer's channel. This is efficient and reduces channel contention.
+
+### Setting up the Consumer
+
+You can set up the context log consumer with default or custom buffering settings.
+
+**Using Default Buffering**
+
+This is the simplest way to get started. It uses a default batch size of 5 and a flush interval of 1 second.
 
 ```go
-func HandleAPIRequest(w http.ResponseWriter, r *http.Request) {
-    // 1. Get the base logger.
-    baseLogger := arbor.Logger()
+// 1. Create a channel to receive log batches.
+logBatchChannel := make(chan []models.LogEvent, 10)
 
-    // 2. Create a function-specific logger with a correlation ID.
-    funcLogger, extractLogs, cleanup := baseLogger.WithFunctionLogger(
-        "req-abc-123", 
-        models.WriterConfiguration{Level: arbor.TraceLevel},
-    )
-    defer cleanup() // Ensure resources are released at the end of the function.
+// 2. Configure arbor to send context logs to your channel with default settings.
+arbor.Logger().SetContextChannel(logBatchChannel)
+defer common.Stop() // Ensures the context buffer is flushed and stopped.
 
-    // 3. Use the function logger throughout your request.
-    funcLogger.Info().Msg("Processing API request.")
-    // ... your business logic ...
-    funcLogger.Debug().Str("user", "john_doe").Msg("User authenticated.")
-
-    if someErrorOccurs {
-        funcLogger.Error().Err(err).Msg("An error occurred.")
+// 3. Start a consumer goroutine to process logs from the channel.
+go func() {
+    for logBatch := range logBatchChannel {
+        // Process the batch of logs...
     }
-
-    // 4. At the end of the request, extract all logs for this specific function.
-    logs, err := extractLogs()
-    if err != nil {
-        // Handle extraction error
-    }
-
-    // You can now append these logs to your API response, save them elsewhere, etc.
-    fmt.Println("Logs for request req-abc-123:", logs)
-}
+}()
 ```
 
-### Using WithFunctionLogger in Concurrent Goroutines
+**Using Custom Buffering**
 
-When you have multiple goroutines operating under the same correlation ID, it is crucial to **call `WithFunctionLogger` only once** for that ID. You should then pass the resulting `funcLogger` instance to all the goroutines.
+For more control over performance, you can specify the batch size and flush interval. This is useful for high-throughput applications where larger batches are more efficient.
 
-Calling `WithFunctionLogger` multiple times with the same ID will create separate, isolated log stores, and you will not be able to extract all the logs for that ID together.
+```go
+// 1. Create a channel.
+logBatchChannel := make(chan []models.LogEvent, 10)
 
-**Correct Usage:**
+// 2. Configure with a larger batch size and longer interval.
+arbor.Logger().SetContextChannelWithBuffer(logBatchChannel, 100, 5*time.Second)
+defer common.Stop()
+
+// 3. Start the consumer goroutine...
+```
+
+### Producer Example
+
+This example demonstrates how a consumer can set up a channel and how multiple producers can log to it using a shared context ID.
 
 ```go
 package main
@@ -243,114 +253,76 @@ import (
     "time"
 
     "github.com/ternarybob/arbor"
+    "github.com/ternarybob/arbor/common"
     "github.com/ternarybob/arbor/models"
 )
 
 func main() {
-    // 1. Configure the base logger
-    baseLogger := arbor.Logger().
-        WithConsoleWriter(models.WriterConfiguration{
-            Type:       models.LogWriterTypeConsole,
-            TimeFormat: "15:04:05.000",
-        })
+    // --- Consumer Setup ---
 
-    // 2. Create the function logger *once* for the shared correlation ID
-    correlationID := "concurrent-job-456"
-    funcLogger, extractLogs, cleanup := baseLogger.WithFunctionLogger(
-        correlationID,
-        models.WriterConfiguration{Level: arbor.DebugLevel},
-    )
-    defer cleanup()
+    // 1. Create a channel to receive log batches.
+    logBatchChannel := make(chan []models.LogEvent, 10)
 
-    // 3. Use the *same* funcLogger instance in multiple goroutines
-    var wg sync.WaitGroup
-    for i := 0; i < 3; i++ {
-        wg.Add(1)
-        go func(workerID int) {
-            defer wg.Done()
-            // Each goroutine uses the shared logger instance
-            funcLogger.Info().Int("worker", workerID).Msg("Starting work.")
-            time.Sleep(10 * time.Millisecond)
-            funcLogger.Debug().Int("worker", workerID).Msg("Work complete.")
-        }(i)
-    }
+    // 2. Configure arbor to send context logs to your channel.
+    // We use a small batch size and interval for demonstration purposes.
+    arbor.Logger().SetContextChannelWithBuffer(logBatchChannel, 3, 500*time.Millisecond)
+    defer common.Stop() // Ensures the context buffer is flushed and stopped.
 
-    wg.Wait()
-
-    // 4. Extract all logs from the single, shared store
-    allFunctionLogs, _ := extractLogs()
-
-    fmt.Println("\n--- All Logs for concurrent-job-456 ---")
-    // Note: The order of logs from different goroutines is not guaranteed.
-    for _, log := range allFunctionLogs {
-        fmt.Println(log)
-    }
-    fmt.Println("---------------------------------------")
-}
-```
-
-```go
-import (
-    "fmt"
-    "github.com/ternarybob/arbor"
-    "github.com/ternarybob/arbor/models"
-)
-
-// Example demonstrating additive logging with WithFunctionLogger
-func main() {
-    // Configure a base logger with a console writer
-    baseLogger := arbor.Logger().
-        WithConsoleWriter(models.WriterConfiguration{
-            Type:       models.LogWriterTypeConsole,
-            TimeFormat: "15:04:05.000",
-        })
-
-    // Log a message with the base logger
-    baseLogger.Info().Msg("This is a global log message.")
-
-    // Create a function-specific logger
-    funcLogger, extractLogs, cleanup := baseLogger.WithFunctionLogger(
-        "my-function-call",
-        models.WriterConfiguration{Level: arbor.DebugLevel},
-    )
-    defer cleanup()
-
-    // Log messages with the function logger
-    funcLogger.Debug().Str("step", "start").Msg("Function started.")
-    funcLogger.Info().Str("data", "processed").Msg("Data processed successfully.")
-
-    // Log another message with the base logger
-    baseLogger.Warn().Msg("Global warning message.")
-
-    // Extract logs from the function-specific store
-    functionLogs, err := extractLogs()
-    if err != nil {
-        fmt.Printf("Error extracting function logs: %v\n", err)
-    } else {
-        fmt.Println("\n--- Function Logs (my-function-call) ---")
-        for _, log := range functionLogs {
-            fmt.Println(log)
+    // 3. Start a consumer goroutine to process logs from the channel.
+    var wgConsumer sync.WaitGroup
+    wgConsumer.Add(1)
+    go func() {
+        defer wgConsumer.Done()
+        for logBatch := range logBatchChannel {
+            fmt.Printf("\n--- Received Batch of %d Logs ---\\n", len(logBatch))
+            for _, log := range logBatch {
+                // In a real application, you would write this to a database.
+                fmt.Printf("  [DB] JobID: %s, Message: %s\n", log.CorrelationID, log.Message)
+            }
+            fmt.Println("------------------------------------")
         }
-        fmt.Println("--------------------------------------")
-    }
+    }()
 
-    // Expected output to console:
-    // 15:04:05 INF > This is a global log message.
-    // 15:04:05 DBG > Function started. step=start
-    // 15:04:05 INF > Data processed successfully. data=processed
-    // 15:04:05 WRN > Global warning message.
-    //
-    // Expected output from extractLogs():
-    // --- Function Logs (my-function-call) ---
-    // DBG|15:04:05|Function started. step=start
-    // INF|15:04:05|Data processed successfully. data=processed
-    // --------------------------------------
+    // --- Producer Logic ---
+
+    // 4. In various parts of your application, get a logger for a specific context.
+    jobID := "job-xyz-789"
+    logger := arbor.Logger().WithConsoleWriter(models.WriterConfiguration{})
+
+    // Goroutine 1 simulates one part of the job.
+    var wgProducers sync.WaitGroup
+    wgProducers.Add(1)
+    go func() {
+        defer wgProducers.Done()
+        jobLogger := logger.ForContext(jobID)
+        jobLogger.Info().Msg("Step 1: Validating input.")
+        time.Sleep(10 * time.Millisecond)
+        jobLogger.Info().Msg("Step 2: Processing data.")
+    }()
+
+    // Goroutine 2 simulates another part of the same job.
+    wgProducers.Add(1)
+    go func() {
+        defer wgProducers.Done()
+        jobLogger := logger.ForContext(jobID)
+        time.Sleep(20 * time.Millisecond)
+        jobLogger.Warn().Msg("Step 3: A non-critical error occurred.")
+        time.Sleep(10 * time.Millisecond)
+        jobLogger.Info().Msg("Step 4: Job complete.")
+    }()
+
+    wgProducers.Wait()
+
+    // 5. Stop the context buffer and wait for the consumer to finish.
+    common.Stop()      // This will flush any remaining logs.
+    close(logBatchChannel) // Close the channel to signal the consumer to exit.
+    wgConsumer.Wait()
 }
 ```
 
 ## Memory Logging & Retrieval
 
-**Note:** For capturing logs related to a specific function or request, the recommended approach is to use `WithFunctionLogger` as described in the section above.
+**Note:** For capturing logs related to a specific function or request, the recommended approach is to use `ForContext` as described in the section above.
 
 Arbor provides a powerful in-memory log store with optional BoltDB persistence for general-purpose debugging and log retrieval.
 

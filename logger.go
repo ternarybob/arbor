@@ -3,6 +3,7 @@ package arbor
 import (
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
@@ -25,6 +26,39 @@ const (
 type logger struct {
 	writers     []writers.IWriter // Private writers for this logger instance
 	contextData map[string]string // Track context key-value pairs
+}
+
+// SetContextChannel configures the context logger with a channel for receiving log batches.
+// It uses default buffering settings (batch size 5, flush interval 1 second).
+func (l *logger) SetContextChannel(ch chan []models.LogEvent) {
+	common.Start(ch, 5, 1*time.Second)
+}
+
+// SetContextChannelWithBuffer configures the context logger with custom buffering settings.
+func (l *logger) SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSize int, flushInterval time.Duration) {
+	common.Start(ch, batchSize, flushInterval)
+}
+
+// ForContext creates a logger for a specific context (e.g., a job ID).
+// It logs to both the standard writers and the configured context channel.
+func (l *logger) ForContext(contextID string) ILogger {
+	// Create a new writer that will send logs to the context buffer.
+	contextWriter := writers.NewContextWriter()
+
+	// Get all the existing global writers.
+	globalWriters := GetAllRegisteredWriters()
+	newWriters := make([]writers.IWriter, 0, len(globalWriters)+1)
+	for _, writer := range globalWriters {
+		newWriters = append(newWriters, writer)
+	}
+	newWriters = append(newWriters, contextWriter)
+
+	// Create a copy of the logger and configure it for the context.
+	contextLogger := l.Copy().
+		WithCorrelationId(contextID). // Use correlation ID to tag context logs.
+		WithWriters(newWriters)
+
+	return contextLogger
 }
 
 var (
@@ -54,55 +88,6 @@ func createNewLogger() ILogger {
 	}
 	logger.WithLevel(InfoLevel) // Initial level
 	return logger
-}
-
-func (l *logger) WithFunctionLogger(correlationID string, config models.WriterConfiguration) (ILogger, func() (map[string]string, error), func() error, error) {
-	// Try to register the correlation ID to ensure it's unique.
-	if err := RegisterFunctionLogger(correlationID); err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Create a new memory writer and log store writer for this function logger.
-	memoryWriter := writers.MemoryWriter(config)
-	logStoreWriter := writers.LogStoreWriter(memoryWriter.GetStore(), config)
-
-	// Get all the existing global writers.
-	globalWriters := GetAllRegisteredWriters()
-	newWriters := make([]writers.IWriter, 0, len(globalWriters)+1)
-	for _, writer := range globalWriters {
-		newWriters = append(newWriters, writer)
-	}
-	newWriters = append(newWriters, logStoreWriter)
-
-	// Create a copy of the logger and configure it.
-	functionLogger := l.Copy().
-		WithCorrelationId(correlationID).
-		WithWriters(newWriters)
-
-	// Define the extractor function.
-	extractor := func() (map[string]string, error) {
-		return memoryWriter.GetEntries(correlationID)
-	}
-
-	// Define the cleanup function.
-	cleanup := func() error {
-		// Unregister the function logger from the active registry first.
-		UnregisterFunctionLogger(correlationID)
-
-		var err1, err2 error
-		if logStoreWriter != nil {
-			err1 = logStoreWriter.Close()
-		}
-		if memoryWriter != nil {
-			err2 = memoryWriter.Close()
-		}
-		if err1 != nil {
-			return err1
-		}
-		return err2
-	}
-
-	return functionLogger, extractor, cleanup, nil
 }
 
 func (l *logger) WithWriters(writers []writers.IWriter) ILogger {

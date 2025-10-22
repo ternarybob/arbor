@@ -1,14 +1,17 @@
 package arbor
 
 import (
+	"time"
+
 	"github.com/ternarybob/arbor/models"
 	"github.com/ternarybob/arbor/writers"
 )
 
 type ILogger interface {
-	WithFunctionLogger(correlationID string, config models.WriterConfiguration) (ILogger, func() (map[string]string, error), func() error, error)
+	SetContextChannel(ch chan []models.LogEvent)
+	SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSize int, flushInterval time.Duration)
+	ForContext(contextID string) ILogger
 	WithWriters(writers []writers.IWriter) ILogger
-
 	WithConsoleWriter(config models.WriterConfiguration) ILogger
 
 	WithFileWriter(config models.WriterConfiguration) ILogger
