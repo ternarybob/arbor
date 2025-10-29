@@ -1,61 +1,72 @@
 package writers
 
 import (
+	"encoding/json"
+	"sync"
+
 	"github.com/phuslu/log"
 	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 )
 
-// ContextWriter is a writer that sends log events to the global context buffer.
+// ContextWriter is a lightweight writer that sends log events directly to the global singleton context buffer managed by common.contextbuffer.
 type ContextWriter struct {
-	writer IGoroutineWriter
-	config models.WriterConfiguration
+	config    models.WriterConfiguration
+	configMux sync.RWMutex
 }
 
 // NewContextWriter creates a new ContextWriter.
 func NewContextWriter(config models.WriterConfiguration) IWriter {
-	// Create internal logger for error reporting
-	internalLog := common.NewLogger().WithContext("function", "NewContextWriter").GetLogger()
-
-	// Define processor closure that calls common.Log()
-	processor := func(entry models.LogEvent) error {
-		common.Log(entry)
-		return nil
-	}
-
-	// Create and start async writer with 1000 buffer size
-	writer, err := newAsyncWriter(config, 1000, processor)
-	if err != nil {
-		internalLog.Fatal().Err(err).Msg("Failed to create async writer")
-		panic("Failed to create async writer: " + err.Error())
-	}
-
-	// Construct ContextWriter struct
 	return &ContextWriter{
-		writer: writer,
 		config: config,
 	}
 }
 
-// Write delegates to the composed goroutine writer.
+// Write implements IWriter by unmarshaling JSON, filtering by log level, and sending to the singleton context buffer.
 func (cw *ContextWriter) Write(p []byte) (n int, err error) {
-	return cw.writer.Write(p)
+	// Return early for empty input
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	// Unmarshal JSON into LogEvent
+	var logEvent models.LogEvent
+	if err := json.Unmarshal(p, &logEvent); err != nil {
+		return 0, err
+	}
+
+	// Check log level filter
+	cw.configMux.RLock()
+	minLevel := cw.config.Level.ToLogLevel()
+	cw.configMux.RUnlock()
+
+	// Filter out logs below minimum level
+	if logEvent.Level < minLevel {
+		return len(p), nil
+	}
+
+	// Send directly to singleton context buffer
+	common.Log(logEvent)
+
+	return len(p), nil
 }
 
-// WithLevel delegates to the composed goroutine writer.
+// WithLevel sets the minimum log level for this writer.
 func (cw *ContextWriter) WithLevel(level log.Level) IWriter {
-	cw.writer.WithLevel(level)
+	cw.configMux.Lock()
 	cw.config.Level = levels.FromLogLevel(level)
+	cw.configMux.Unlock()
 	return cw
 }
 
 // GetFilePath returns an empty string (context writers don't write to files).
 func (cw *ContextWriter) GetFilePath() string {
-	return cw.writer.GetFilePath()
+	return ""
 }
 
-// Close stops the goroutine and drains the buffer.
+// Close returns nil immediately since there are no resources to clean up.
+// The singleton context buffer lifecycle is managed separately via common.Stop().
 func (cw *ContextWriter) Close() error {
-	return cw.writer.Close()
+	return nil
 }

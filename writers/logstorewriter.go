@@ -17,7 +17,7 @@ import (
 type logStoreWriter struct {
 	store  ILogStore
 	config models.WriterConfiguration
-	writer IGoroutineWriter
+	writer IChannelWriter
 }
 
 // LogStoreWriter creates a new writer that stores logs in the provided ILogStore

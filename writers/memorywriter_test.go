@@ -7,7 +7,6 @@ package writers
 
 import (
 	"encoding/json"
-	"sync"
 	"testing"
 	"time"
 
@@ -273,78 +272,5 @@ func TestMemoryWriter_WithPersistence(t *testing.T) {
 
 	if len(entries) == 0 {
 		t.Error("Expected at least one entry")
-	}
-}
-
-func TestWebSocketWriter_Basic(t *testing.T) {
-	config := models.WriterConfiguration{
-		Type:  models.LogWriterTypeMemory,
-		Level: levels.LogLevel(log.TraceLevel),
-	}
-
-	// Create store
-	store, err := NewInMemoryLogStore(config)
-	if err != nil {
-		t.Fatalf("Failed to create store: %v", err)
-	}
-	defer store.Close()
-
-	// Create WebSocket writer with faster poll interval for testing
-	wsWriter := WebSocketWriter(store, config, 50*time.Millisecond).(*websocketWriter)
-	defer wsWriter.Close()
-
-	// Add a test client
-	received := make([]models.LogEvent, 0)
-	var receivedMux sync.Mutex
-	receivedChan := make(chan bool, 1)
-
-	client := NewSimpleWebSocketClient(
-		func(data interface{}) error {
-			if logs, ok := data.([]models.LogEvent); ok {
-				receivedMux.Lock()
-				received = append(received, logs...)
-				receivedMux.Unlock()
-				select {
-				case receivedChan <- true:
-				default:
-				}
-			}
-			return nil
-		},
-		func() error {
-			return nil
-		},
-	)
-
-	// Add client first
-	wsWriter.AddClient("test-client", client)
-
-	// Give the polling goroutine time to start
-	time.Sleep(20 * time.Millisecond)
-
-	// Write log to store
-	logEvent := models.LogEvent{
-		Level:         log.InfoLevel,
-		Timestamp:     time.Now(),
-		CorrelationID: "ws-test",
-		Message:       "websocket test message",
-	}
-
-	store.Store(logEvent)
-
-	// Wait for broadcast (should happen within 2 poll intervals)
-	select {
-	case <-receivedChan:
-		// Success
-	case <-time.After(200 * time.Millisecond):
-		t.Error("Timeout waiting for WebSocket broadcast")
-	}
-
-	receivedMux.Lock()
-	receivedCount := len(received)
-	receivedMux.Unlock()
-
-	if receivedCount == 0 {
-		t.Error("Expected to receive log entries via WebSocket")
 	}
 }

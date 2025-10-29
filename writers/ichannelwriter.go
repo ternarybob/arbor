@@ -1,6 +1,6 @@
 package writers
 
-type IGoroutineWriter interface {
+type IChannelWriter interface {
 	IWriter
 	Start() error
 	Stop() error

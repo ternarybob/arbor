@@ -10,6 +10,9 @@ import (
 type ILogger interface {
 	SetContextChannel(ch chan []models.LogEvent)
 	SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSize int, flushInterval time.Duration)
+	SetChannel(name string, ch chan []models.LogEvent)
+	SetChannelWithBuffer(name string, ch chan []models.LogEvent, batchSize int, flushInterval time.Duration)
+	UnregisterChannel(name string)
 	WithContextWriter(contextID string) ILogger
 	WithWriters(writers []writers.IWriter) ILogger
 	WithConsoleWriter(config models.WriterConfiguration) ILogger

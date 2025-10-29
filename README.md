@@ -44,13 +44,11 @@ func main() {
 - **Multi-Writer Architecture**:
   - Synchronous writers (Console, File) for immediate output
   - Async writers (LogStore, Context) with buffered non-blocking processing
-  - WebSocket writer for real-time streaming to connected clients
   - Shared log store for queryable in-memory and optional persistent storage
 - **Correlation ID Tracking**: Request tracing across application layers
 - **Structured Logging**: Rich field support with fluent API
 - **Log Level Management**: String-based and programmatic level configuration
 - **In-Memory Log Store**: Fast queryable storage with optional BoltDB persistence
-- **WebSocket Support**: Real-time log streaming to connected clients
 - **API Integration**: Built-in Gin framework support
 - **Global Registry**: Cross-context logger access
 - **Thread-Safe**: Concurrent access with proper synchronization
@@ -211,13 +209,13 @@ logger.WithCorrelationId("") // Generates UUID automatically
 logger.ClearCorrelationId()
 ```
 
-## Async Writers with GoroutineWriter
+## Async Writers with ChannelWriter
 
-Arbor provides a powerful async buffered writer pattern through the `goroutineWriter` base. This architecture enables non-blocking log writes while maintaining reliability through automatic buffer draining and graceful shutdown.
+Arbor provides a powerful async buffered writer pattern through the `channelWriter` base. This architecture enables non-blocking log writes while maintaining reliability through automatic buffer draining and graceful shutdown.
 
-### What is GoroutineWriter?
+### What is ChannelWriter?
 
-The `goroutineWriter` is a reusable async writer implementation that:
+The `channelWriter` is a reusable async writer implementation that:
 - **Buffers log entries** in a channel (default 1000 entries)
 - **Processes entries** in a background goroutine
 - **Returns immediately** from Write() calls (~100μs latency)
@@ -226,7 +224,7 @@ The `goroutineWriter` is a reusable async writer implementation that:
 
 ### Built-in Async Writers
 
-Two writers use the goroutineWriter base:
+Two writers use the channelWriter base:
 
 #### LogStoreWriter
 Writes logs to in-memory or persistent storage asynchronously:
@@ -286,7 +284,7 @@ defer common.Stop() // Flushes context buffer
 
 ### Creating Custom Async Writers
 
-You can build custom writers using goroutineWriter for:
+You can build custom writers using channelWriter for:
 - External services (Datadog, Splunk, CloudWatch)
 - Custom databases (MongoDB, PostgreSQL, Elasticsearch)
 - Specialized processing (aggregation, filtering, transformation)
@@ -520,29 +518,365 @@ func HandleRequest(c *gin.Context) {
 }
 ```
 
-### WebSocket Streaming Pattern
+### Channel-Based Log Streaming
 
-Stream logs in real-time to WebSocket clients:
+Arbor provides two channel-based APIs for streaming logs: `SetContextChannel` for singleton context logging (covered in the "Context-Specific Logging" section above) and `SetChannel`/`SetChannelWithBuffer` for multiple independent named channels. This section focuses on the named channel API for general-purpose log streaming.
+
+#### Overview
+
+The named channel API allows you to register multiple independent channels, each with its own batching configuration and lifecycle:
+
+- **SetContextChannel**: Singleton buffer shared by all `WithContextWriter` loggers. Use for capturing all logs for a specific job/request context. Managed via `common.Start()` and `common.Stop()`.
+- **SetChannel/SetChannelWithBuffer**: Multiple independent named channels. Use for general streaming to WebSocket clients, external services, or custom consumers. Each channel has isolated batching and is managed via `SetChannel()` and `UnregisterChannel()`.
+
+**Use Cases:**
+- **SetContextChannel**: "Capture all logs for job-123 and store in database"
+- **SetChannel**: "Stream all application logs to WebSocket clients" or "Send error logs to Slack alerting"
+
+#### Basic Usage
 
 ```go
-import (
-    "github.com/ternarybob/arbor/writers"
-)
+// Create channel for receiving log batches
+// Buffer size of 10-100 recommended depending on throughput
+logChannel := make(chan []models.LogEvent, 10)
 
-// Get memory writer and extract the shared store
-memWriter := arbor.GetRegisteredMemoryWriter(arbor.WRITER_MEMORY)
-store := memWriter.GetStore()
+// Register channel with default batching (5 events, 1 second)
+// The "name" parameter uniquely identifies this channel
+arbor.Logger().SetChannel("websocket-logs", logChannel)
 
-// Create WebSocket writer with 500ms poll interval
-wsWriter := writers.WebSocketWriter(store, config, 500*time.Millisecond)
+// Or with custom batching for high-throughput scenarios
+// batchSize: number of events before automatic flush
+// flushInterval: maximum time before automatic flush
+arbor.Logger().SetChannelWithBuffer("websocket-logs", logChannel, 100, 5*time.Second)
 
-// Add WebSocket client
-wsWriter.AddClient("client-id", yourWebSocketClient)
+// Consumer goroutine to receive and process batches
+go func() {
+    for logBatch := range logChannel {
+        // Batch contains up to batchSize events
+        for _, logEvent := range logBatch {
+            // Process each event
+            fmt.Printf("[%s] %s: %s\n", logEvent.Level, logEvent.CorrelationID, logEvent.Message)
+        }
 
-// Clients automatically receive new logs every 500ms
-// Or query manually by timestamp:
-newLogs, _ := wsWriter.GetLogsSince(time.Now().Add(-5 * time.Minute))
+        // Error handling for WebSocket broadcast
+        if err := broadcastToClients(logBatch); err != nil {
+            log.Printf("Broadcast error: %v", err)
+        }
+    }
+}()
+
+// Normal logging - all logs go to the channel
+arbor.Info().Msg("This message will be batched and sent to the channel")
 ```
+
+#### Advanced Patterns
+
+**Multiple Independent Channels**
+
+Register multiple named channels for different purposes:
+
+```go
+// Audit logs to database
+auditChannel := make(chan []models.LogEvent, 20)
+arbor.Logger().SetChannel("audit-logs", auditChannel)
+
+// Metrics to monitoring system
+metricsChannel := make(chan []models.LogEvent, 50)
+arbor.Logger().SetChannel("metrics", metricsChannel)
+
+// Critical alerts to notification service
+alertsChannel := make(chan []models.LogEvent, 10)
+arbor.Logger().SetChannelWithBuffer("alerts", alertsChannel, 1, 100*time.Millisecond)
+
+// Each channel receives all logs independently
+```
+
+**Dynamic Channel Registration**
+
+Add and remove channels at runtime:
+
+```go
+// Add channel when WebSocket client connects
+func OnClientConnect(clientID string) {
+    clientChannel := make(chan []models.LogEvent, 10)
+    channelName := fmt.Sprintf("client-%s", clientID)
+
+    arbor.Logger().SetChannel(channelName, clientChannel)
+
+    // Start consumer for this client
+    go streamToClient(clientID, clientChannel)
+}
+
+// Remove channel when client disconnects
+func OnClientDisconnect(clientID string) {
+    channelName := fmt.Sprintf("client-%s", clientID)
+    arbor.Logger().UnregisterChannel(channelName)
+    // Channel cleanup happens automatically
+}
+```
+
+**High-Throughput Configuration**
+
+For high-volume scenarios, use larger batches and longer intervals:
+
+```go
+// Process 500 events at once or flush every 10 seconds
+// Reduces overhead but increases latency
+highThroughputChannel := make(chan []models.LogEvent, 100)
+arbor.Logger().SetChannelWithBuffer("high-volume", highThroughputChannel, 500, 10*time.Second)
+```
+
+**Real-Time Configuration**
+
+For low-latency requirements, use small batches and short intervals:
+
+```go
+// Process 1-5 events at once with sub-second flush
+// Lower latency but higher processing overhead
+realTimeChannel := make(chan []models.LogEvent, 20)
+arbor.Logger().SetChannelWithBuffer("real-time", realTimeChannel, 1, 100*time.Millisecond)
+```
+
+**WebSocket Broadcasting with Connection Management**
+
+Complete example with error handling and graceful shutdown:
+
+```go
+type WebSocketManager struct {
+    clients map[string]*websocket.Conn
+    mu      sync.RWMutex
+    logChan chan []models.LogEvent
+}
+
+func NewWebSocketManager() *WebSocketManager {
+    mgr := &WebSocketManager{
+        clients: make(map[string]*websocket.Conn),
+        logChan: make(chan []models.LogEvent, 50),
+    }
+
+    // Register channel with appropriate batching
+    arbor.Logger().SetChannelWithBuffer("websocket", mgr.logChan, 20, 1*time.Second)
+
+    // Start broadcast goroutine
+    go mgr.broadcastLoop()
+
+    return mgr
+}
+
+func (mgr *WebSocketManager) broadcastLoop() {
+    for logBatch := range mgr.logChan {
+        mgr.mu.RLock()
+        for clientID, conn := range mgr.clients {
+            if err := conn.WriteJSON(logBatch); err != nil {
+                log.Printf("Failed to send to client %s: %v", clientID, err)
+                // Handle disconnected clients
+                go mgr.RemoveClient(clientID)
+            }
+        }
+        mgr.mu.RUnlock()
+    }
+}
+
+func (mgr *WebSocketManager) AddClient(clientID string, conn *websocket.Conn) {
+    mgr.mu.Lock()
+    mgr.clients[clientID] = conn
+    mgr.mu.Unlock()
+}
+
+func (mgr *WebSocketManager) RemoveClient(clientID string) {
+    mgr.mu.Lock()
+    if conn, ok := mgr.clients[clientID]; ok {
+        conn.Close()
+        delete(mgr.clients, clientID)
+    }
+    mgr.mu.Unlock()
+}
+
+func (mgr *WebSocketManager) Shutdown() {
+    // Unregister channel (stops the buffer and writer)
+    arbor.Logger().UnregisterChannel("websocket")
+
+    // Close all client connections
+    mgr.mu.Lock()
+    for _, conn := range mgr.clients {
+        conn.Close()
+    }
+    mgr.clients = nil
+    mgr.mu.Unlock()
+
+    // Drain remaining batches with bounded wait
+    timeout := time.After(2 * time.Second)
+drainLoop:
+    for {
+        select {
+        case batch := <-mgr.logChan:
+            // Process final batches (already closed clients, just drain)
+            _ = batch
+        case <-time.After(100 * time.Millisecond):
+            // No batch arrived, done draining
+            break drainLoop
+        case <-timeout:
+            // Overall timeout exceeded
+            break drainLoop
+        }
+    }
+
+    // Exit without closing the channel - the sender (ChannelBuffer) owns it
+    // and may still attempt a final send during flush
+}
+```
+
+#### Lifecycle Management
+
+**Cleanup with UnregisterChannel**
+
+Properly stop and remove a channel logger:
+
+```go
+// Register channel
+logChannel := make(chan []models.LogEvent, 10)
+arbor.Logger().SetChannel("my-channel", logChannel)
+
+// Later, when done with the channel
+arbor.Logger().UnregisterChannel("my-channel")
+// This stops the ChannelWriter and ChannelBuffer goroutines
+// and removes the channel from the registry
+```
+
+**Automatic Cleanup on Replacement**
+
+Calling `SetChannel` with an existing name automatically cleans up the old writer and buffer:
+
+```go
+// First registration
+channel1 := make(chan []models.LogEvent, 10)
+arbor.Logger().SetChannel("stream", channel1)
+
+// Later, replace with new channel
+// Old channel is automatically cleaned up
+channel2 := make(chan []models.LogEvent, 10)
+arbor.Logger().SetChannel("stream", channel2)
+// channel1 is no longer receiving logs
+```
+
+**Graceful Shutdown**
+
+Pattern for draining remaining batches during shutdown:
+
+```go
+func shutdown() {
+    // Step 1: Unregister channel (stops the buffer and writer)
+    arbor.Logger().UnregisterChannel("my-channel")
+
+    // Step 2: Drain any remaining batches with bounded wait
+    // Use a timeout to prevent indefinite blocking
+    timeout := time.After(2 * time.Second)
+    drainLoop:
+    for {
+        select {
+        case batch := <-logChannel:
+            // Process final batches
+            processBatch(batch)
+        case <-time.After(100 * time.Millisecond):
+            // No batch arrived within timeout, done draining
+            break drainLoop
+        case <-timeout:
+            // Overall timeout exceeded
+            log.Println("Shutdown timeout exceeded, exiting")
+            break drainLoop
+        }
+    }
+
+    // Step 3: Exit consumer goroutine without closing the channel
+    // The sender (ChannelBuffer) owns the channel and may attempt
+    // a final send during flush. Never close a channel you don't own.
+}
+```
+
+**Important**: The consumer must not close the channel because the sender (`common.ChannelBuffer`) owns it and may still attempt a final send during buffer flush. Receivers should only read from channels; closing is the sender's responsibility.
+
+**Resource Management**
+
+Each named channel creates two goroutines (ChannelWriter + ChannelBuffer), so cleanup is important:
+
+```go
+// Resource usage per channel:
+// - 1 ChannelWriter goroutine (processes writes)
+// - 1 ChannelBuffer goroutine (batches events)
+// - ~150KB memory overhead (buffers)
+
+// Always cleanup when done:
+defer arbor.Logger().UnregisterChannel("channel-name")
+```
+
+#### Comparison: SetChannel vs SetContextChannel
+
+| Feature | SetContextChannel | SetChannel/SetChannelWithBuffer |
+|---------|-------------------|----------------------------------|
+| **Buffer Type** | Singleton (one shared buffer) | Multiple independent buffers |
+| **Scope** | All `WithContextWriter` loggers | All loggers |
+| **Use Case** | Job/request tracking | General streaming/broadcasting |
+| **Example** | "All logs for job-123" | "Stream to WebSocket clients" |
+| **Lifecycle** | `common.Start()` / `common.Stop()` | `SetChannel()` / `UnregisterChannel()` |
+| **Isolation** | Shared by correlation ID | Isolated by channel name |
+| **Best For** | Context-specific capture | Service integrations, real-time streaming |
+
+#### Error Handling and Edge Cases
+
+**Nil Channel**
+
+Calling `SetChannel` with a nil channel will panic with a clear error message:
+
+```go
+// This will panic
+arbor.Logger().SetChannel("bad-channel", nil)
+// Panic: Cannot create channel writer with nil channel
+```
+
+**Invalid Parameters**
+
+Zero or negative `batchSize` or `flushInterval` will use safe defaults:
+
+```go
+// These all use defaults: batchSize=5, flushInterval=1s
+arbor.Logger().SetChannelWithBuffer("ch1", logChan, 0, 1*time.Second)
+arbor.Logger().SetChannelWithBuffer("ch2", logChan, -10, 1*time.Second)
+arbor.Logger().SetChannelWithBuffer("ch3", logChan, 5, 0)
+arbor.Logger().SetChannelWithBuffer("ch4", logChan, 5, -1*time.Second)
+```
+
+**Buffer Overflow**
+
+If the ChannelWriter buffer fills (default 1000 entries), entries are dropped with warning logs:
+
+```go
+// If logging faster than channel consumer can process:
+// - ChannelWriter buffer fills (1000 entries)
+// - New writes complete in ~100μs (non-blocking)
+// - Entries are dropped with warning log
+// - Application continues normally without blocking
+```
+
+**Channel Blocking**
+
+If the output channel blocks (consumer too slow), the ChannelBuffer will timeout and drop the batch:
+
+```go
+// If consumer is too slow and channel buffer fills:
+// - ChannelBuffer attempts to send batch
+// - 1 second timeout on channel send
+// - Batch is dropped if timeout occurs
+// - Warning logged about dropped batch
+// - Next batch continues normally
+```
+
+**Best Practices:**
+- Use buffered channels (10-100 capacity) for output
+- Monitor consumer performance to avoid backpressure
+- Implement proper error handling in consumers
+- Always cleanup channels with `UnregisterChannel` when done
+
+For more details on the context-specific logging API, see the "Context-Specific Logging" section above.
 
 ### Performance Characteristics
 
@@ -554,7 +888,6 @@ newLogs, _ := wsWriter.GetLogsSince(time.Now().Add(-5 * time.Minute))
 - **Correlation queries**: ~50μs (in-memory map lookup)
 - **Timestamp queries**: ~100μs (in-memory slice scan)
 - **BoltDB persistence**: Async background writes (doesn't block logging)
-- **WebSocket polling**: Retrieves batches every 500ms (configurable)
 
 ## API Integration
 
@@ -729,7 +1062,6 @@ Arbor uses a **shared log store** pattern for memory-based writers:
                          └──► BoltDB (optional persistence, async)
                               │
                               ├──► Memory Writer (correlation queries)
-                              ├──► WebSocket Writer (timestamp polling)
                               └──► Future readers...
 ```
 
@@ -801,7 +1133,7 @@ These writers provide non-blocking writes with automatic buffer management:
 **Data Flow:**
 
 ```
-Log Event → goroutineWriter Base (async, buffered)
+Log Event → channelWriter Base (async, buffered)
     ├──► LogStoreWriter → ILogStore → In-Memory/BoltDB
     └──► ContextWriter → Global Context Buffer → Channel
 ```
@@ -832,40 +1164,11 @@ contextLogger := logger.WithContextWriter("job-123")
 contextLogger.Info().Msg("Non-blocking write completes in ~100μs")
 ```
 
-### Poll-Based Writer (WebSocket)
+### Custom Async Writers (ChannelWriter)
 
-**Pattern:** Polls ILogStore on timer, broadcasts to connected clients
+For advanced use cases, you can create custom async writers using the `channelWriter` base. This is useful when you need to integrate with custom storage backends, external services, or implement specialized log processing.
 
-The WebSocket writer uses a pull-based model optimized for real-time streaming:
-
-- **Performance**: Retrieves log batches every 500ms (configurable)
-- **Blocking**: No - polling happens in background goroutine
-- **Use Cases**: Real-time log streaming to web dashboards and monitoring tools
-- **Pattern**: Pull-based (polls store) vs Push-based (receives writes)
-
-**Note:** The WebSocket writer intentionally uses a different pattern than the async writers. It polls the log store on a timer and broadcasts batches to clients, rather than receiving individual write calls. This pull-based design is optimized for the one-to-many broadcast use case.
-
-**Example:**
-
-```go
-// Get the shared log store
-memWriter := arbor.GetRegisteredMemoryWriter(arbor.WRITER_MEMORY)
-store := memWriter.GetStore()
-
-// Create WebSocket writer with 500ms poll interval
-wsWriter := writers.WebSocketWriter(store, config, 500*time.Millisecond)
-
-// Add WebSocket clients
-wsWriter.AddClient("client-1", yourWebSocketClient)
-
-// Clients automatically receive new logs every 500ms
-```
-
-### Custom Async Writers (GoroutineWriter)
-
-For advanced use cases, you can create custom async writers using the `goroutineWriter` base. This is useful when you need to integrate with custom storage backends, external services, or implement specialized log processing.
-
-**Pattern:** The `goroutineWriter` provides a reusable async buffered writer with automatic lifecycle management.
+**Pattern:** The `channelWriter` provides a reusable async buffered writer with automatic lifecycle management.
 
 **Use Cases:**
 - Custom database writers (MongoDB, PostgreSQL, Elasticsearch)
@@ -883,7 +1186,7 @@ import (
 
 // Custom writer that sends logs to an external API
 type APIWriter struct {
-    writer writers.IGoroutineWriter
+    writer writers.IChannelWriter
     config models.WriterConfiguration
     apiClient *YourAPIClient
 }
@@ -896,8 +1199,8 @@ func NewAPIWriter(config models.WriterConfiguration, apiURL string) (writers.IWr
         return apiClient.SendLog(entry)
     }
 
-    // Create goroutine writer with 1000 buffer size
-    writer, err := writers.NewGoroutineWriter(config, 1000, processor)
+    // Create channel writer with 1000 buffer size
+    writer, err := writers.NewChannelWriter(config, 1000, processor)
     if err != nil {
         return nil, err
     }
@@ -934,6 +1237,154 @@ func (w *APIWriter) Close() error {
 }
 ```
 
+#### WebSocketWriter using ChannelWriter
+
+This example demonstrates creating a WebSocketWriter that broadcasts log events to connected WebSocket clients using the ChannelWriter pattern:
+
+```go
+import (
+    "encoding/json"
+    "sync"
+
+    "github.com/gorilla/websocket"
+    "github.com/ternarybob/arbor"
+    "github.com/ternarybob/arbor/models"
+    "github.com/ternarybob/arbor/writers"
+)
+
+// WebSocketWriter broadcasts log events to WebSocket clients
+type WebSocketWriter struct {
+    writer  writers.IChannelWriter
+    config  models.WriterConfiguration
+    manager *ConnectionManager
+}
+
+// ConnectionManager handles thread-safe WebSocket client connections
+type ConnectionManager struct {
+    clients map[string]*websocket.Conn
+    mu      sync.RWMutex
+}
+
+func NewConnectionManager() *ConnectionManager {
+    return &ConnectionManager{
+        clients: make(map[string]*websocket.Conn),
+    }
+}
+
+func (cm *ConnectionManager) AddClient(clientID string, conn *websocket.Conn) {
+    cm.mu.Lock()
+    defer cm.mu.Unlock()
+    cm.clients[clientID] = conn
+}
+
+func (cm *ConnectionManager) RemoveClient(clientID string) {
+    cm.mu.Lock()
+    defer cm.mu.Unlock()
+    if conn, ok := cm.clients[clientID]; ok {
+        conn.Close()
+        delete(cm.clients, clientID)
+    }
+}
+
+func (cm *ConnectionManager) Broadcast(logEvent models.LogEvent) error {
+    cm.mu.RLock()
+    defer cm.mu.RUnlock()
+
+    // Broadcast to all connected clients
+    for clientID, conn := range cm.clients {
+        if err := conn.WriteJSON(logEvent); err != nil {
+            // Handle disconnected clients asynchronously
+            go cm.RemoveClient(clientID)
+            continue
+        }
+    }
+    return nil
+}
+
+// NewWebSocketWriter creates a ChannelWriter-based WebSocket broadcaster
+func NewWebSocketWriter(config models.WriterConfiguration, manager *ConnectionManager) (writers.IWriter, error) {
+    // Define processor that broadcasts each log entry to WebSocket clients
+    processor := func(entry models.LogEvent) error {
+        return manager.Broadcast(entry)
+    }
+
+    // Create channel writer with 1000 buffer size
+    writer, err := writers.NewChannelWriter(config, 1000, processor)
+    if err != nil {
+        return nil, err
+    }
+
+    // Start the background goroutine
+    if err := writer.Start(); err != nil {
+        return nil, err
+    }
+
+    return &WebSocketWriter{
+        writer:  writer,
+        config:  config,
+        manager: manager,
+    }, nil
+}
+
+// Implement IWriter interface
+func (w *WebSocketWriter) Write(data []byte) (int, error) {
+    return w.writer.Write(data)
+}
+
+func (w *WebSocketWriter) WithLevel(level log.Level) writers.IWriter {
+    w.writer.WithLevel(level)
+    return w
+}
+
+func (w *WebSocketWriter) GetFilePath() string {
+    return "" // Not file-based
+}
+
+func (w *WebSocketWriter) Close() error {
+    // Gracefully shut down - drains buffer before closing
+    return w.writer.Close()
+}
+
+// Usage example
+func SetupWebSocketLogging() {
+    // Create connection manager
+    connManager := NewConnectionManager()
+
+    // Create WebSocket writer
+    wsWriter, err := NewWebSocketWriter(models.WriterConfiguration{
+        Type:  models.LogWriterTypeConsole, // Use console type for compatibility
+        Level: arbor.InfoLevel,
+    }, connManager)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer wsWriter.Close()
+
+    // Register with logger
+    allWriters := append(arbor.GetAllRegisteredWriters(), wsWriter)
+    logger := arbor.Logger().WithWriters(allWriters)
+
+    // Add WebSocket clients as they connect
+    // connManager.AddClient(clientID, conn)
+
+    // All logs now broadcast to WebSocket clients
+    logger.Info().Msg("This log will be sent to all WebSocket clients")
+}
+```
+
+**Key Features:**
+- **Thread-safe connection management**: RWMutex protects concurrent client access
+- **Automatic cleanup**: Disconnected clients are removed asynchronously during broadcast failures
+- **Non-blocking writes**: ChannelWriter buffers logs, preventing slow clients from blocking the logger
+- **Error handling**: Gracefully handles client disconnections without affecting other clients
+- **Standard IWriter interface**: Integrates seamlessly with arbor's writer system
+
+**Notes:**
+- The processor function unmarshal and broadcasts the `LogEvent` to all connected clients
+- Connection management is separated from the writer for better modularity
+- Buffer size of 1000 entries prevents memory issues during client slowdowns
+- Always call `Close()` during shutdown to drain the buffer and prevent log loss
+
 #### Manual Lifecycle Control
 
 If you need fine-grained control over the goroutine lifecycle:
@@ -945,7 +1396,7 @@ processor := func(entry models.LogEvent) error {
     return nil
 }
 
-writer, err := writers.NewGoroutineWriter(config, 1000, processor)
+writer, err := writers.NewChannelWriter(config, 1000, processor)
 if err != nil {
     log.Fatal(err)
 }
@@ -1007,7 +1458,7 @@ processor := func(entry models.LogEvent) error {
             continue
         }
 
-        // Log error and return (goroutineWriter will log the failure)
+        // Log error and return (channelWriter will log the failure)
         return fmt.Errorf("failed after %d retries: %w", i+1, err)
     }
     return nil
@@ -1020,7 +1471,7 @@ When the buffer is full (1000 entries by default):
 
 ```go
 // Buffer full scenario
-writer, _ := writers.NewGoroutineWriter(config, 1000, slowProcessor)
+writer, _ := writers.NewChannelWriter(config, 1000, slowProcessor)
 writer.Start()
 
 // If buffer fills up:

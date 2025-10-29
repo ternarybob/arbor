@@ -67,14 +67,14 @@ func createCollectingProcessor(collected *[]models.LogEvent, mu *sync.Mutex) fun
 }
 
 // ===========================
-// SECTION 1: UNIT TESTS FOR goroutineWriter BASE
+// SECTION 1: UNIT TESTS FOR channelWriter BASE
 // ===========================
 
-func TestGoroutineWriter_NewWithValidProcessor(t *testing.T) {
+func TestChannelWriter_NewWithValidProcessor(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 
 	if writer == nil {
 		t.Fatal("Expected writer to be non-nil")
@@ -83,10 +83,10 @@ func TestGoroutineWriter_NewWithValidProcessor(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Verify writer implements IGoroutineWriter
-	_, ok := writer.(IGoroutineWriter)
+	// Verify writer implements IChannelWriter
+	_, ok := writer.(IChannelWriter)
 	if !ok {
-		t.Error("Expected writer to implement IGoroutineWriter interface")
+		t.Error("Expected writer to implement IChannelWriter interface")
 	}
 
 	// Verify not started yet
@@ -95,10 +95,10 @@ func TestGoroutineWriter_NewWithValidProcessor(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_NewWithNilProcessor(t *testing.T) {
+func TestChannelWriter_NewWithNilProcessor(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.InfoLevel}
 
-	writer, err := NewGoroutineWriter(config, 1000, nil)
+	writer, err := NewChannelWriter(config, 1000, nil)
 
 	if writer != nil {
 		t.Error("Expected writer to be nil when processor is nil")
@@ -108,28 +108,28 @@ func TestGoroutineWriter_NewWithNilProcessor(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_NewWithInvalidBufferSize(t *testing.T) {
+func TestChannelWriter_NewWithInvalidBufferSize(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
 	// Test with zero buffer size
-	writer, err := NewGoroutineWriter(config, 0, processor)
+	writer, err := NewChannelWriter(config, 0, processor)
 	if writer == nil || err != nil {
 		t.Error("Expected writer creation to succeed with zero buffer size (should default to 1000)")
 	}
 
 	// Test with negative buffer size
-	writer, err = NewGoroutineWriter(config, -100, processor)
+	writer, err = NewChannelWriter(config, -100, processor)
 	if writer == nil || err != nil {
 		t.Error("Expected writer creation to succeed with negative buffer size (should default to 1000)")
 	}
 }
 
-func TestGoroutineWriter_StartStop_Lifecycle(t *testing.T) {
+func TestChannelWriter_StartStop_Lifecycle(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -166,12 +166,12 @@ func TestGoroutineWriter_StartStop_Lifecycle(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_StartStopRestart(t *testing.T) {
+func TestChannelWriter_StartStopRestart(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestGoroutineWriter_StartStopRestart(t *testing.T) {
 		t.Error("Expected running after restart")
 	}
 
-	// Verify goroutine is processing
+	// Verify channel writer is processing
 	event := createTestLogEvent(log.InfoLevel, "restart-test", "test message")
 	data := marshalLogEvent(t, event)
 	if _, err := writer.Write(data); err != nil {
@@ -217,12 +217,12 @@ func TestGoroutineWriter_StartStopRestart(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_Write_BeforeStart(t *testing.T) {
+func TestChannelWriter_Write_BeforeStart(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -245,12 +245,12 @@ func TestGoroutineWriter_Write_BeforeStart(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_Write_AfterStop(t *testing.T) {
+func TestChannelWriter_Write_AfterStop(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -280,12 +280,12 @@ func TestGoroutineWriter_Write_AfterStop(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_Write_Success(t *testing.T) {
+func TestChannelWriter_Write_Success(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -316,11 +316,11 @@ func TestGoroutineWriter_Write_Success(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_Write_InvalidJSON(t *testing.T) {
+func TestChannelWriter_Write_InvalidJSON(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -343,11 +343,11 @@ func TestGoroutineWriter_Write_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_Write_EmptyData(t *testing.T) {
+func TestChannelWriter_Write_EmptyData(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -380,12 +380,12 @@ func TestGoroutineWriter_Write_EmptyData(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_LevelFiltering(t *testing.T) {
+func TestChannelWriter_LevelFiltering(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.WarnLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -417,12 +417,12 @@ func TestGoroutineWriter_LevelFiltering(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_WithLevel_DynamicChange(t *testing.T) {
+func TestChannelWriter_WithLevel_DynamicChange(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.InfoLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -464,13 +464,13 @@ func TestGoroutineWriter_WithLevel_DynamicChange(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_BufferOverflow(t *testing.T) {
+func TestChannelWriter_BufferOverflow(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 	// Slow processor (100ms per entry)
 	processor := createDelayedProcessor(&counter, 100*time.Millisecond)
 
-	writer, err := NewGoroutineWriter(config, 10, processor) // Small buffer
+	writer, err := NewChannelWriter(config, 10, processor) // Small buffer
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -509,12 +509,12 @@ func TestGoroutineWriter_BufferOverflow(t *testing.T) {
 	t.Logf("Processed %d out of 60 entries (overflow test)", processed)
 }
 
-func TestGoroutineWriter_GracefulShutdown_BufferDraining(t *testing.T) {
+func TestChannelWriter_GracefulShutdown_BufferDraining(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 	processor := createDelayedProcessor(&counter, 10*time.Millisecond)
 
-	writer, err := NewGoroutineWriter(config, 100, processor)
+	writer, err := NewChannelWriter(config, 100, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -546,12 +546,12 @@ func TestGoroutineWriter_GracefulShutdown_BufferDraining(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_ConcurrentWrites(t *testing.T) {
+func TestChannelWriter_ConcurrentWrites(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -565,7 +565,7 @@ func TestGoroutineWriter_ConcurrentWrites(t *testing.T) {
 		t.Fatalf("Failed to start writer: %v", err)
 	}
 
-	// Launch 10 goroutines, each writing 10 entries
+	// Launch 10 channel writers, each writing 10 entries
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -589,13 +589,13 @@ func TestGoroutineWriter_ConcurrentWrites(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_ProcessorError(t *testing.T) {
+func TestChannelWriter_ProcessorError(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error {
 		return errors.New("processor error")
 	}
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -620,9 +620,9 @@ func TestGoroutineWriter_ProcessorError(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	// Goroutine should still be running
+	// Channel writer should still be running
 	if !writer.IsRunning() {
-		t.Error("Expected goroutine to continue running after processor errors")
+		t.Error("Expected channel writer to continue running after processor errors")
 	}
 
 	// Should be able to write more entries
@@ -637,11 +637,11 @@ func TestGoroutineWriter_ProcessorError(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_Close_Idempotent(t *testing.T) {
+func TestChannelWriter_Close_Idempotent(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -663,11 +663,11 @@ func TestGoroutineWriter_Close_Idempotent(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_GetFilePath(t *testing.T) {
+func TestChannelWriter_GetFilePath(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -678,13 +678,13 @@ func TestGoroutineWriter_GetFilePath(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_MultipleEntries_OrderPreserved(t *testing.T) {
+func TestChannelWriter_MultipleEntries_OrderPreserved(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var collected []models.LogEvent
 	var mu sync.Mutex
 	processor := createCollectingProcessor(&collected, &mu)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -729,7 +729,7 @@ func TestGoroutineWriter_MultipleEntries_OrderPreserved(t *testing.T) {
 // SECTION 2: INTEGRATION TESTS WITH REFACTORED WRITERS
 // ===========================
 
-func TestLogStoreWriter_Integration_WithGoroutineWriter(t *testing.T) {
+func TestLogStoreWriter_Integration_WithChannelWriter(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	store, err := NewInMemoryLogStore(config)
 	if err != nil {
@@ -854,7 +854,7 @@ func TestLogStoreWriter_Integration_GracefulShutdown(t *testing.T) {
 	}
 }
 
-func TestContextWriter_Integration_WithGoroutineWriter(t *testing.T) {
+func TestContextWriter_Integration_WithChannelWriter(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 
 	writer := NewContextWriter(config)
@@ -1028,18 +1028,18 @@ func TestContextWriter_BackwardCompatibility_ConstructorSignature(t *testing.T) 
 // SECTION 4: EDGE CASE AND CONCURRENCY TESTS
 // ===========================
 
-func TestGoroutineWriter_ConcurrentStartStop(t *testing.T) {
+func TestChannelWriter_ConcurrentStartStop(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	processor := func(models.LogEvent) error { return nil }
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
 
 	var wg sync.WaitGroup
 
-	// Launch 5 goroutines calling Start()
+	// Launch 5 channel writers calling Start()
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
@@ -1048,7 +1048,7 @@ func TestGoroutineWriter_ConcurrentStartStop(t *testing.T) {
 		}()
 	}
 
-	// Launch 5 goroutines calling Stop()
+	// Launch 5 channel writers calling Stop()
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
@@ -1070,12 +1070,12 @@ func TestGoroutineWriter_ConcurrentStartStop(t *testing.T) {
 	}
 }
 
-func TestGoroutineWriter_ConcurrentWithLevel(t *testing.T) {
+func TestChannelWriter_ConcurrentWithLevel(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.InfoLevel}
 	var counter atomic.Int64
 	processor := createCountingProcessor(&counter)
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -1091,7 +1091,7 @@ func TestGoroutineWriter_ConcurrentWithLevel(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	// Goroutine writing Debug entries
+	// Channel writer writing Debug entries
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1105,7 +1105,7 @@ func TestGoroutineWriter_ConcurrentWithLevel(t *testing.T) {
 		}
 	}()
 
-	// Goroutine changing level to Debug after 50ms
+	// Channel writer changing level to Debug after 50ms
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1128,7 +1128,7 @@ func TestGoroutineWriter_ConcurrentWithLevel(t *testing.T) {
 	t.Logf("Processed %d out of 100 Debug entries (concurrent WithLevel test)", processed)
 }
 
-func TestGoroutineWriter_ProcessorError_ContinuesProcessing(t *testing.T) {
+func TestChannelWriter_ProcessorError_ContinuesProcessing(t *testing.T) {
 	config := models.WriterConfiguration{Level: levels.TraceLevel}
 	var counter atomic.Int64
 
@@ -1141,7 +1141,7 @@ func TestGoroutineWriter_ProcessorError_ContinuesProcessing(t *testing.T) {
 		return nil
 	}
 
-	writer, err := NewGoroutineWriter(config, 1000, processor)
+	writer, err := NewChannelWriter(config, 1000, processor)
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -1171,8 +1171,8 @@ func TestGoroutineWriter_ProcessorError_ContinuesProcessing(t *testing.T) {
 		t.Errorf("Expected 5 attempts (errors logged but processing continued), got %d", counter.Load())
 	}
 
-	// Goroutine should still be running
+	// Channel writer should still be running
 	if !writer.IsRunning() {
-		t.Error("Expected goroutine to continue running after processor errors")
+		t.Error("Expected channel writer to continue running after processor errors")
 	}
 }

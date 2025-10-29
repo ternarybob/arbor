@@ -13,6 +13,10 @@ import (
 )
 
 func TestContextLogger_Integration(t *testing.T) {
+	// This test validates the simplified ContextWriter which now directly calls common.Log()
+	// instead of wrapping a ChannelWriter. The external behavior remains the same - logs are
+	// batched and sent to the channel via the singleton context buffer.
+
 	// 1. Create a channel to receive log batches.
 	logChan := make(chan []models.LogEvent, 10)
 
@@ -57,6 +61,8 @@ func TestContextLogger_Integration(t *testing.T) {
 	close(consumerStop)
 	wg.Wait()
 
+	// This test validates that the simplified ContextWriter (which directly calls common.Log())
+	// correctly integrates with the singleton context buffer to deliver batched logs to the channel.
 	require.GreaterOrEqual(t, len(receivedLogs), 1, "Should have received at least one batch")
 
 	// 8. Flatten the received batches and verify content.

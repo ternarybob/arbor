@@ -3,6 +3,7 @@ package arbor
 import (
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ternarybob/arbor/common"
@@ -23,6 +24,12 @@ const (
 	GIN_LOG_KEY        string = "gin"
 )
 
+// Global tracking for channel buffers to enable proper lifecycle management
+var (
+	channelBuffers    = make(map[string]*common.ChannelBuffer)
+	channelBuffersMux sync.RWMutex
+)
+
 // logger is the main arbor logger implementation that supports multiple writers
 type logger struct {
 	writers     []writers.IWriter // Private writers for this logger instance
@@ -38,6 +45,118 @@ func (l *logger) SetContextChannel(ch chan []models.LogEvent) {
 // SetContextChannelWithBuffer configures the context logger with custom buffering settings.
 func (l *logger) SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSize int, flushInterval time.Duration) {
 	common.Start(ch, batchSize, flushInterval)
+}
+
+// SetChannel registers a named channel logger with default batching settings (batch size 5, flush interval 1 second).
+func (l *logger) SetChannel(name string, ch chan []models.LogEvent) {
+	l.SetChannelWithBuffer(name, ch, 5, 1*time.Second)
+}
+
+// SetChannelWithBuffer registers a named channel logger with custom batching settings.
+func (l *logger) SetChannelWithBuffer(name string, ch chan []models.LogEvent, batchSize int, flushInterval time.Duration) {
+	internalLog := common.NewLogger().WithContext("function", "Logger.SetChannelWithBuffer").GetLogger()
+
+	// Nil check for output channel
+	if ch == nil {
+		internalLog.Error().Msg("Cannot create channel writer with nil channel")
+		panic("Cannot create channel writer with nil channel")
+	}
+
+	// Validate and set defaults for batchSize
+	if batchSize <= 0 {
+		batchSize = 5 // Default batch size
+		internalLog.Debug().Msgf("Invalid batchSize, using default: %d", batchSize)
+	}
+
+	// Validate and set defaults for flushInterval
+	if flushInterval <= 0 {
+		flushInterval = 1 * time.Second // Default flush interval
+		internalLog.Debug().Msgf("Invalid flushInterval, using default: %v", flushInterval)
+	}
+
+	// Clean up existing writer and buffer if present
+	channelBuffersMux.Lock()
+	if existingBuffer, exists := channelBuffers[name]; exists {
+		internalLog.Debug().Msgf("Cleaning up existing channel buffer for '%s'", name)
+		existingBuffer.Stop()
+		delete(channelBuffers, name)
+	}
+	channelBuffersMux.Unlock()
+
+	// Close existing writer if registered
+	if existingWriter := GetRegisteredWriter(name); existingWriter != nil {
+		internalLog.Debug().Msgf("Closing existing writer for '%s'", name)
+		existingWriter.Close()
+		UnregisterWriter(name)
+	}
+
+	// Create a new channel buffer instance for this named channel
+	channelBuf := common.NewChannelBuffer(ch, batchSize, flushInterval)
+	if channelBuf == nil {
+		internalLog.Error().Msg("Failed to create channel buffer (nil output channel)")
+		panic("Failed to create channel buffer")
+	}
+
+	// Define processor closure that adds events to the buffer
+	processor := func(entry models.LogEvent) error {
+		channelBuf.Log(entry)
+		return nil
+	}
+
+	// Create a minimal WriterConfiguration with trace level
+	config := models.WriterConfiguration{Level: levels.TraceLevel}
+
+	// Calculate queue size based on batch size (use max of 1000 or batchSize * 100)
+	queueSize := batchSize * 100
+	if queueSize < 1000 {
+		queueSize = 1000
+	}
+
+	// Create and start the channel writer
+	writer, err := writers.NewChannelWriter(config, queueSize, processor)
+	if err != nil {
+		internalLog.Fatal().Err(err).Msg("Failed to create channel writer")
+		panic("Failed to create channel writer: " + err.Error())
+	}
+
+	err = writer.Start()
+	if err != nil {
+		internalLog.Fatal().Err(err).Msg("Failed to start channel writer")
+		panic("Failed to start channel writer: " + err.Error())
+	}
+
+	// Track the buffer for lifecycle management
+	channelBuffersMux.Lock()
+	channelBuffers[name] = channelBuf
+	channelBuffersMux.Unlock()
+
+	// Register the writer in the global registry
+	RegisterWriter(name, writer)
+
+	internalLog.Trace().Msgf("Channel writer '%s' registered successfully with queue size %d", name, queueSize)
+}
+
+// UnregisterChannel stops and removes a named channel logger, cleaning up all resources.
+func (l *logger) UnregisterChannel(name string) {
+	internalLog := common.NewLogger().WithContext("function", "Logger.UnregisterChannel").GetLogger()
+
+	// Stop and remove the channel buffer
+	channelBuffersMux.Lock()
+	if buffer, exists := channelBuffers[name]; exists {
+		internalLog.Debug().Msgf("Stopping channel buffer for '%s'", name)
+		buffer.Stop()
+		delete(channelBuffers, name)
+	}
+	channelBuffersMux.Unlock()
+
+	// Close and unregister the writer
+	if writer := GetRegisteredWriter(name); writer != nil {
+		internalLog.Debug().Msgf("Closing and unregistering writer for '%s'", name)
+		writer.Close()
+		UnregisterWriter(name)
+	}
+
+	internalLog.Trace().Msgf("Channel writer '%s' unregistered successfully", name)
 }
 
 // WithContextWriter creates a logger for a specific context (e.g., a job ID).
