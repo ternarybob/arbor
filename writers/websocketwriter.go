@@ -22,7 +22,20 @@ type WebSocketClient interface {
 	Close() error
 }
 
-// websocketWriter polls the log store and broadcasts to WebSocket clients
+// IWebSocketWriter extends IWriter with WebSocket-specific methods for client management and log queries
+type IWebSocketWriter interface {
+	IWriter
+	AddClient(clientID string, client WebSocketClient)
+	RemoveClient(clientID string)
+	GetLogsSince(since time.Time) ([]models.LogEvent, error)
+	GetLogsByCorrelation(correlationID string) ([]models.LogEvent, error)
+}
+
+// websocketWriter implements a polling-based pattern that is architecturally incompatible
+// with the write-driven goroutineWriter base. It polls an ILogStore on a timer and broadcasts
+// to WebSocket clients, rather than receiving and buffering writes. The Write() method is
+// intentionally a no-op. This is a deliberate design choice to support real-time log streaming
+// with a pull-based model.
 type websocketWriter struct {
 	store        ILogStore
 	config       models.WriterConfiguration
@@ -31,12 +44,13 @@ type websocketWriter struct {
 	lastSent     time.Time
 	pollInterval time.Duration
 	stopPoll     chan bool
+	wg           sync.WaitGroup
+	closeOnce    sync.Once
+	logger       log.Logger
 }
 
 // WebSocketWriter creates a new WebSocket writer that polls the log store
-func WebSocketWriter(store ILogStore, config models.WriterConfiguration, pollInterval time.Duration) IWriter {
-	internalLog := common.NewLogger().WithContext("function", "WebSocketWriter").GetLogger()
-
+func WebSocketWriter(store ILogStore, config models.WriterConfiguration, pollInterval time.Duration) IWebSocketWriter {
 	if pollInterval == 0 {
 		pollInterval = 500 * time.Millisecond // Default poll interval
 	}
@@ -48,12 +62,14 @@ func WebSocketWriter(store ILogStore, config models.WriterConfiguration, pollInt
 		pollInterval: pollInterval,
 		lastSent:     time.Now(),
 		stopPoll:     make(chan bool),
+		logger:       common.NewLogger().GetLogger(),
 	}
 
 	// Start polling for new logs
+	wsw.wg.Add(1)
 	go wsw.pollAndBroadcast()
 
-	internalLog.Info().Msgf("WebSocket writer started with %v poll interval", pollInterval)
+	wsw.logger.Info().Msgf("WebSocket writer started with %v poll interval", pollInterval)
 
 	return wsw
 }
@@ -62,10 +78,10 @@ func WebSocketWriter(store ILogStore, config models.WriterConfiguration, pollInt
 func (wsw *websocketWriter) AddClient(clientID string, client WebSocketClient) {
 	wsw.clientsMux.Lock()
 	wsw.clients[clientID] = client
+	clientCount := len(wsw.clients)
 	wsw.clientsMux.Unlock()
 
-	internalLog := common.NewLogger().WithContext("function", "WebSocketWriter.AddClient").GetLogger()
-	internalLog.Info().Msgf("WebSocket client added: %s (total: %d)", clientID, len(wsw.clients))
+	wsw.logger.Info().Msgf("WebSocket client added: %s (total: %d)", clientID, clientCount)
 }
 
 // RemoveClient unregisters a WebSocket client
@@ -75,15 +91,15 @@ func (wsw *websocketWriter) RemoveClient(clientID string) {
 		client.Close()
 		delete(wsw.clients, clientID)
 	}
+	clientCount := len(wsw.clients)
 	wsw.clientsMux.Unlock()
 
-	internalLog := common.NewLogger().WithContext("function", "WebSocketWriter.RemoveClient").GetLogger()
-	internalLog.Info().Msgf("WebSocket client removed: %s (total: %d)", clientID, len(wsw.clients))
+	wsw.logger.Info().Msgf("WebSocket client removed: %s (total: %d)", clientID, clientCount)
 }
 
 // pollAndBroadcast periodically checks for new logs and broadcasts to clients
 func (wsw *websocketWriter) pollAndBroadcast() {
-	internalLog := common.NewLogger().WithContext("function", "WebSocketWriter.pollAndBroadcast").GetLogger()
+	defer wsw.wg.Done()
 
 	ticker := time.NewTicker(wsw.pollInterval)
 	defer ticker.Stop()
@@ -93,7 +109,7 @@ func (wsw *websocketWriter) pollAndBroadcast() {
 		case <-ticker.C:
 			wsw.broadcastNewLogs()
 		case <-wsw.stopPoll:
-			internalLog.Info().Msg("WebSocket polling stopped")
+			wsw.logger.Info().Msg("WebSocket polling stopped")
 			return
 		}
 	}
@@ -101,12 +117,10 @@ func (wsw *websocketWriter) pollAndBroadcast() {
 
 // broadcastNewLogs sends new logs to all connected clients
 func (wsw *websocketWriter) broadcastNewLogs() {
-	internalLog := common.NewLogger().WithContext("function", "WebSocketWriter.broadcastNewLogs").GetLogger()
-
 	// Get logs since last poll
 	newLogs, err := wsw.store.GetSince(wsw.lastSent)
 	if err != nil {
-		internalLog.Warn().Err(err).Msg("Failed to retrieve new logs")
+		wsw.logger.Warn().Err(err).Msg("Failed to retrieve new logs")
 		return
 	}
 
@@ -114,7 +128,29 @@ func (wsw *websocketWriter) broadcastNewLogs() {
 		return // No new logs
 	}
 
-	wsw.lastSent = time.Now()
+	// Update lastSent to the maximum timestamp from the retrieved logs
+	// This ensures we don't miss logs due to clock skew or timing issues
+	maxTimestamp := wsw.lastSent
+	for _, logEvent := range newLogs {
+		if logEvent.Timestamp.After(maxTimestamp) {
+			maxTimestamp = logEvent.Timestamp
+		}
+	}
+	wsw.lastSent = maxTimestamp
+
+	// Filter logs by configured level
+	minLevel := wsw.config.Level.ToLogLevel()
+	filteredLogs := make([]models.LogEvent, 0, len(newLogs))
+	for _, logEvent := range newLogs {
+		if logEvent.Level >= minLevel {
+			filteredLogs = append(filteredLogs, logEvent)
+		}
+	}
+
+	if len(filteredLogs) == 0 {
+		return // No logs match the configured level
+	}
+	newLogs = filteredLogs
 
 	// Broadcast to all connected clients
 	wsw.clientsMux.RLock()
@@ -130,17 +166,21 @@ func (wsw *websocketWriter) broadcastNewLogs() {
 	}
 
 	// Send to each client in goroutines
+	var sendWg sync.WaitGroup
 	for clientID, client := range clients {
+		sendWg.Add(1)
 		go func(id string, c WebSocketClient, logs []models.LogEvent) {
+			defer sendWg.Done()
 			if err := c.SendJSON(logs); err != nil {
-				internalLog.Warn().Err(err).Msgf("Failed to send to client %s", id)
+				wsw.logger.Warn().Err(err).Msgf("Failed to send to client %s", id)
 				// Remove failed client
 				wsw.RemoveClient(id)
 			}
 		}(clientID, client, newLogs)
 	}
+	sendWg.Wait()
 
-	internalLog.Debug().Msgf("Broadcasted %d log entries to %d clients", len(newLogs), clientCount)
+	wsw.logger.Debug().Msgf("Broadcasted %d log entries to %d clients", len(newLogs), clientCount)
 }
 
 // GetLogsSince allows clients to request logs from a specific timestamp
@@ -171,7 +211,10 @@ func (wsw *websocketWriter) GetFilePath() string {
 
 // Close shuts down the WebSocket writer
 func (wsw *websocketWriter) Close() error {
-	close(wsw.stopPoll)
+	wsw.closeOnce.Do(func() {
+		close(wsw.stopPoll)
+	})
+	wsw.wg.Wait()
 
 	// Close all clients
 	wsw.clientsMux.Lock()

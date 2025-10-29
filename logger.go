@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ternarybob/arbor/common"
+	"github.com/ternarybob/arbor/levels"
 	"github.com/ternarybob/arbor/models"
 	"github.com/ternarybob/arbor/transformers"
 	"github.com/ternarybob/arbor/writers"
@@ -43,7 +44,7 @@ func (l *logger) SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSiz
 // It logs to both the standard writers and the configured context channel.
 func (l *logger) WithContextWriter(contextID string) ILogger {
 	// Create a new writer that will send logs to the context buffer.
-	contextWriter := writers.NewContextWriter()
+	contextWriter := writers.NewContextWriter(models.WriterConfiguration{Level: levels.TraceLevel})
 
 	// Get all the existing global writers.
 	globalWriters := GetAllRegisteredWriters()
