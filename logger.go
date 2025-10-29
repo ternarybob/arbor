@@ -36,15 +36,18 @@ type logger struct {
 	contextData map[string]string // Track context key-value pairs
 }
 
-// SetContextChannel configures the context logger with a channel for receiving log batches.
-// It uses default buffering settings (batch size 5, flush interval 1 second).
+// SetContextChannel is deprecated. Use SetChannel("context", ch) instead.
+// This method internally calls SetChannel with a fixed name "context".
+// It will be removed in a future major version.
 func (l *logger) SetContextChannel(ch chan []models.LogEvent) {
-	common.Start(ch, 5, 1*time.Second)
+	l.SetChannel("context", ch)
 }
 
-// SetContextChannelWithBuffer configures the context logger with custom buffering settings.
+// SetContextChannelWithBuffer is deprecated. Use SetChannelWithBuffer("context", ch, batchSize, flushInterval) instead.
+// This method internally calls SetChannelWithBuffer with a fixed name "context".
+// It will be removed in a future major version.
 func (l *logger) SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSize int, flushInterval time.Duration) {
-	common.Start(ch, batchSize, flushInterval)
+	l.SetChannelWithBuffer("context", ch, batchSize, flushInterval)
 }
 
 // SetChannel registers a named channel logger with default batching settings (batch size 5, flush interval 1 second).
@@ -159,26 +162,20 @@ func (l *logger) UnregisterChannel(name string) {
 	internalLog.Trace().Msgf("Channel writer '%s' unregistered successfully", name)
 }
 
-// WithContextWriter creates a logger for a specific context (e.g., a job ID).
-// It logs to both the standard writers and the configured context channel.
+// WithContextWriter creates a logger with a correlation ID for context-specific logging.
+// It simply adds the correlation ID to tag all logs from this logger.
+// If you need to stream logs for a specific context, use SetChannel to register a named
+// channel and filter by correlation ID in the consumer.
+//
+// Example:
+//
+//	logChan := make(chan []models.LogEvent, 10)
+//	arbor.Logger().SetChannel("my-context", logChan)
+//	contextLogger := arbor.Logger().WithContextWriter("job-123")
+//	// In consumer: filter batches by event.CorrelationID == "job-123"
 func (l *logger) WithContextWriter(contextID string) ILogger {
-	// Create a new writer that will send logs to the context buffer.
-	contextWriter := writers.NewContextWriter(models.WriterConfiguration{Level: levels.TraceLevel})
-
-	// Get all the existing global writers.
-	globalWriters := GetAllRegisteredWriters()
-	newWriters := make([]writers.IWriter, 0, len(globalWriters)+1)
-	for _, writer := range globalWriters {
-		newWriters = append(newWriters, writer)
-	}
-	newWriters = append(newWriters, contextWriter)
-
-	// Create a copy of the logger and configure it for the context.
-	contextLogger := l.Copy().
-		WithCorrelationId(contextID). // Use correlation ID to tag context logs.
-		WithWriters(newWriters)
-
-	return contextLogger
+	// Simply return a copy with the correlation ID set
+	return l.Copy().WithCorrelationId(contextID)
 }
 
 var (

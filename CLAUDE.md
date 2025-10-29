@@ -78,7 +78,7 @@ rm -rf temp/ && go clean -testcache
 - File Writer: Rotation, backup, size management, configurable JSON/text output format, synchronous writes (~50-100μs)
 - Memory Writer: Async writes via LogStoreWriter (ChannelWriter base), BoltDB persistence with TTL and cleanup
 - ChannelWriter: Reusable async buffered writer base (1000-entry buffer, non-blocking writes, automatic drain on shutdown)
-- ContextWriter: Lightweight writer that directly sends log events to singleton context buffer (no internal async layer)
+- ContextWriter (deprecated): Previously sent to singleton context buffer, no longer used by `WithContextWriter`
 - LogStoreWriter: Async writer using ChannelWriter base to write to ILogStore (in-memory + optional BoltDB)
 
 **Global Registry (`registry.go`, `iregistry.go`)**
@@ -109,23 +109,24 @@ rm -rf temp/ && go clean -testcache
 
 ### Channel-Based Logging APIs
 
-Arbor provides two channel-based APIs for streaming logs to consumers:
+Arbor provides a unified channel-based API for streaming logs to consumers:
 
-**SetContextChannel/SetContextChannelWithBuffer**: Singleton context buffer for job/request tracking
-- All `WithContextWriter` loggers share the same buffer
-- Use for capturing all logs related to a specific context (e.g., "all logs for job-123")
-- Managed via `common.Start()` and `common.Stop()`
-- Batches logs by correlation ID before sending to channel
-
-**SetChannel/SetChannelWithBuffer**: Multiple independent named channels for general streaming
+**SetChannel/SetChannelWithBuffer**: Named channels for all streaming use cases
 - Each channel has its own ChannelWriter and ChannelBuffer
 - Use for streaming logs to WebSocket clients, external services, or custom consumers
+- Filter by correlation ID in consumers for context-specific log capture
 - Managed via `SetChannel()` and `UnregisterChannel()`
-- Each channel receives all logs independently (not filtered by correlation ID)
+- Multiple independent channels with isolated batching configurations
+
+**Deprecated APIs** (will be removed in future major version):
+- `SetContextChannel/SetContextChannelWithBuffer`: Now internally calls `SetChannel("context", ...)`
+- Use `SetChannel` with correlation ID filtering instead
+- Replace `common.Start()` with `SetChannel()` and `common.Stop()` with `UnregisterChannel()`
 
 **Use Cases**:
-- **SetContextChannel**: "Capture all logs for job-123 and store in database"
-- **SetChannel**: "Stream all application logs to WebSocket clients" or "Send error logs to Slack"
+- **General Streaming**: "Stream all logs to WebSocket clients" or "Send logs to external monitoring"
+- **Context Tracking**: "Capture all logs for job-123" by filtering on `event.CorrelationID` in consumer
+- **Service Integration**: "Send error logs to Slack" or "Forward metrics to Datadog"
 
 ### Key Design Patterns (Updated)
 
@@ -139,11 +140,11 @@ Arbor provides two channel-based APIs for streaming logs to consumers:
 
 **Framework Integration**: Gin transformer (`transformers/gintransformer.go`) converts framework logs to arbor format while preserving correlation context
 
-**Simplified ContextWriter**: Direct synchronous writes to singleton context buffer (no internal ChannelWriter wrapper), reduces complexity while maintaining non-blocking behavior via singleton buffer
+**Unified Channel API**: Single SetChannel/SetChannelWithBuffer API for all streaming use cases with correlation ID filtering for context-specific capture
 
 **Named Channel Writers**: Multiple independent channel loggers with per-channel batching and lifecycle management, enables flexible streaming to multiple consumers
 
-**Dual Channel APIs**: Singleton context channel for job tracking vs. multiple named channels for general streaming, provides flexibility for different use cases
+**Simplified WithContextWriter**: Now only adds correlation ID without creating additional writers, simplifying the architecture and reducing dual-routing complexity
 
 ## Important Implementation Details
 
@@ -154,16 +155,18 @@ Arbor provides two channel-based APIs for streaming logs to consumers:
 - Correlation ID-based log storage and retrieval
 - Async writes via LogStoreWriter (ChannelWriter base with 1000-entry buffer)
 
-### ContextWriter Architecture
+### WithContextWriter Behavior (Updated)
 
-The ContextWriter was simplified in the recent refactoring to reduce complexity:
+**Current Implementation** (as of deprecation phase):
+- `WithContextWriter(contextID)` now only adds a correlation ID via `WithCorrelationId(contextID)`
+- No longer creates a ContextWriter or routes logs to a singleton context buffer
+- Returns a simple copy of the logger with the correlation ID set
+- For context-specific log streaming, use `SetChannel()` with correlation ID filtering in consumers
 
-**Design**: Lightweight synchronous writer that directly calls `common.Log()` to send events to the singleton context buffer
-- **No Internal Async Layer**: Unlike the old design (which wrapped ChannelWriter), the new ContextWriter has no internal goroutine or channel
-- **Batching**: Handled by the singleton context buffer (`common.contextbuffer`), not by ContextWriter itself
-- **Lifecycle**: No cleanup needed for ContextWriter instances; singleton buffer is managed via `common.Start()` and `common.Stop()`
-- **Performance**: Write operations are fast (~10-50μs) since they only append to the singleton buffer under mutex
-- **Thread-Safe**: Uses RWMutex for level changes and safe concurrent writes
+**Deprecated Components**:
+- `ContextWriter`: No longer used by `WithContextWriter`, marked for removal
+- `common/contextbuffer.go`: Singleton context buffer deprecated, use `SetChannel()` instead
+- `SetContextChannel/SetContextChannelWithBuffer`: Deprecated, internally call `SetChannel("context", ...)`
 
 ### ChannelWriter Base
 
@@ -215,7 +218,7 @@ Most tests create isolated instances to avoid global state conflicts. Memory wri
 - **`models/`**: Data structures (WriterConfiguration, LogEvent, GinLogEvent)
 - **`levels/`**: Log level definitions and string parsing utilities
 - **`transformers/`**: Framework integrations (Gin transformer)
-- **`common/`**: Shared utilities, internal logging, singleton context buffer (`contextbuffer.go`), and per-instance channel buffer (`channelbuffer.go`)
+- **`common/`**: Shared utilities, internal logging, per-instance channel buffer (`channelbuffer.go`). Note: `contextbuffer.go` (singleton context buffer) is deprecated.
 
 ### Key Constants and Configuration
 - **Memory Writer**: Buffer limit 1000 entries per correlation ID, 10-minute TTL, 1-minute cleanup interval

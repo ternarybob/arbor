@@ -10,6 +10,10 @@ import (
 	"github.com/ternarybob/arbor/models"
 )
 
+// Deprecated: ContextWriter is deprecated and will be removed in a future major version.
+// The WithContextWriter method now only adds a correlation ID without creating a ContextWriter.
+// Use SetChannel/SetChannelWithBuffer with correlation ID filtering in consumers instead.
+//
 // ContextWriter is a lightweight writer that sends log events directly to the global singleton context buffer managed by common.contextbuffer.
 type ContextWriter struct {
 	config    models.WriterConfiguration

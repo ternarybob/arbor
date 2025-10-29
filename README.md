@@ -240,19 +240,19 @@ logger := arbor.Logger().WithMemoryWriter(models.WriterConfiguration{
 logger.Info().Msg("Stored asynchronously in memory/BoltDB")
 ```
 
-#### ContextWriter
-Streams logs for specific contexts (jobs, requests) to channels:
+#### Context Logging with Channels
+Stream logs for specific contexts (jobs, requests) to channels using correlation IDs:
 
 ```go
 // Setup channel to receive log batches
 logChannel := make(chan []models.LogEvent, 10)
-arbor.Logger().SetContextChannel(logChannel)
+arbor.Logger().SetChannel("job-logs", logChannel)
 
-// Create context logger
+// Create context logger (adds correlation ID)
 contextLogger := logger.WithContextWriter("job-123")
 
-// Logs go to all writers + async buffer for context channel
-contextLogger.Info().Msg("Logged to console and buffered for channel")
+// Logs go to all writers (consumer can filter by CorrelationID)
+contextLogger.Info().Msg("Logged to all writers, filterable by correlation ID")
 ```
 
 ### Lifecycle and Behavior
@@ -271,8 +271,8 @@ contextLogger.Info().Msg("Logged to console and buffered for channel")
 // 2. Process all buffered entries
 // 3. Clean up resources
 
-// For ContextWriter specifically:
-defer common.Stop() // Flushes context buffer
+// For named channels:
+defer arbor.Logger().UnregisterChannel("channel-name") // Flushes and stops channel
 ```
 
 **Performance Characteristics:**
@@ -320,14 +320,14 @@ This is the simplest way to get started. It uses a default batch size of 5 and a
 // 1. Create a channel to receive log batches.
 logBatchChannel := make(chan []models.LogEvent, 10)
 
-// 2. Configure arbor to send context logs to your channel with default settings.
-arbor.Logger().SetContextChannel(logBatchChannel)
-defer common.Stop() // Ensures the context buffer is flushed and stopped.
+// 2. Configure arbor to send logs to your channel with default settings.
+arbor.Logger().SetChannel("context-logs", logBatchChannel)
+defer arbor.Logger().UnregisterChannel("context-logs")
 
 // 3. Start a consumer goroutine to process logs from the channel.
 go func() {
     for logBatch := range logBatchChannel {
-        // Process the batch of logs...
+        // Process the batch of logs (filter by CorrelationID if needed)...
     }
 }()
 ```
@@ -341,8 +341,8 @@ For more control over performance, you can specify the batch size and flush inte
 logBatchChannel := make(chan []models.LogEvent, 10)
 
 // 2. Configure with a larger batch size and longer interval.
-arbor.Logger().SetContextChannelWithBuffer(logBatchChannel, 100, 5*time.Second)
-defer common.Stop()
+arbor.Logger().SetChannelWithBuffer("context-logs", logBatchChannel, 100, 5*time.Second)
+defer arbor.Logger().UnregisterChannel("context-logs")
 
 // 3. Start the consumer goroutine...
 ```
@@ -360,7 +360,6 @@ import (
     "time"
 
     "github.com/ternarybob/arbor"
-    "github.com/ternarybob/arbor/common"
     "github.com/ternarybob/arbor/models"
 )
 
@@ -370,10 +369,10 @@ func main() {
     // 1. Create a channel to receive log batches.
     logBatchChannel := make(chan []models.LogEvent, 10)
 
-    // 2. Configure arbor to send context logs to your channel.
+    // 2. Configure arbor to send logs to your channel.
     // We use a small batch size and interval for demonstration purposes.
-    arbor.Logger().SetContextChannelWithBuffer(logBatchChannel, 3, 500*time.Millisecond)
-    defer common.Stop() // Ensures the context buffer is flushed and stopped.
+    arbor.Logger().SetChannelWithBuffer("demo-context", logBatchChannel, 3, 500*time.Millisecond)
+    defer arbor.Logger().UnregisterChannel("demo-context")
 
     // 3. Start a consumer goroutine to process logs from the channel.
     var wgConsumer sync.WaitGroup
@@ -420,8 +419,8 @@ func main() {
 
     wgProducers.Wait()
 
-    // 5. Stop the context buffer and wait for the consumer to finish.
-    common.Stop()      // This will flush any remaining logs.
+    // 5. Unregister the channel and wait for the consumer to finish.
+    arbor.Logger().UnregisterChannel("demo-context") // This will flush any remaining logs.
     close(logBatchChannel) // Close the channel to signal the consumer to exit.
     wgConsumer.Wait()
 }
@@ -520,18 +519,20 @@ func HandleRequest(c *gin.Context) {
 
 ### Channel-Based Log Streaming
 
-Arbor provides two channel-based APIs for streaming logs: `SetContextChannel` for singleton context logging (covered in the "Context-Specific Logging" section above) and `SetChannel`/`SetChannelWithBuffer` for multiple independent named channels. This section focuses on the named channel API for general-purpose log streaming.
+Arbor provides a unified channel-based API for streaming logs using `SetChannel`/`SetChannelWithBuffer`. This allows you to register multiple independent named channels, each with its own batching configuration and lifecycle.
 
 #### Overview
 
-The named channel API allows you to register multiple independent channels, each with its own batching configuration and lifecycle:
-
-- **SetContextChannel**: Singleton buffer shared by all `WithContextWriter` loggers. Use for capturing all logs for a specific job/request context. Managed via `common.Start()` and `common.Stop()`.
-- **SetChannel/SetChannelWithBuffer**: Multiple independent named channels. Use for general streaming to WebSocket clients, external services, or custom consumers. Each channel has isolated batching and is managed via `SetChannel()` and `UnregisterChannel()`.
+The channel API allows you to:
+- Register multiple independent channels for different purposes (WebSocket streaming, external services, custom consumers)
+- Configure per-channel batching (batch size and flush interval)
+- Filter logs by correlation ID in consumers for context-specific tracking
+- Manage lifecycle independently with `SetChannel()` and `UnregisterChannel()`
 
 **Use Cases:**
-- **SetContextChannel**: "Capture all logs for job-123 and store in database"
-- **SetChannel**: "Stream all application logs to WebSocket clients" or "Send error logs to Slack alerting"
+- **General Streaming**: "Stream all application logs to WebSocket clients" or "Send logs to external monitoring"
+- **Context Tracking**: "Capture all logs for job-123" by filtering on `CorrelationID` in the consumer
+- **Service Integration**: "Send error logs to Slack" or "Forward metrics to Datadog"
 
 #### Basic Usage
 
@@ -809,17 +810,59 @@ Each named channel creates two goroutines (ChannelWriter + ChannelBuffer), so cl
 defer arbor.Logger().UnregisterChannel("channel-name")
 ```
 
-#### Comparison: SetChannel vs SetContextChannel
+#### Migration Guide: SetContextChannel → SetChannel
 
-| Feature | SetContextChannel | SetChannel/SetChannelWithBuffer |
-|---------|-------------------|----------------------------------|
-| **Buffer Type** | Singleton (one shared buffer) | Multiple independent buffers |
-| **Scope** | All `WithContextWriter` loggers | All loggers |
-| **Use Case** | Job/request tracking | General streaming/broadcasting |
-| **Example** | "All logs for job-123" | "Stream to WebSocket clients" |
-| **Lifecycle** | `common.Start()` / `common.Stop()` | `SetChannel()` / `UnregisterChannel()` |
-| **Isolation** | Shared by correlation ID | Isolated by channel name |
-| **Best For** | Context-specific capture | Service integrations, real-time streaming |
+**`SetContextChannel` and `SetContextChannelWithBuffer` are deprecated** and will be removed in a future major version. Use the unified `SetChannel`/`SetChannelWithBuffer` API instead.
+
+**Old Approach (Deprecated):**
+```go
+// Create channel
+logChannel := make(chan []models.LogEvent, 10)
+
+// Register with singleton context buffer
+arbor.Logger().SetContextChannel(logChannel)
+defer common.Stop()
+
+// Create context logger (sent logs to both standard writers and context buffer)
+contextLogger := arbor.Logger().WithContextWriter("job-123")
+contextLogger.Info().Msg("Processing")
+
+// Consumer received all WithContextWriter logs
+for batch := range logChannel {
+    for _, event := range batch {
+        // All logs from any WithContextWriter call
+    }
+}
+```
+
+**New Approach (Recommended):**
+```go
+// Create channel
+logChannel := make(chan []models.LogEvent, 10)
+
+// Register with named channel (same behavior as SetContextChannel)
+arbor.Logger().SetChannel("context", logChannel)
+defer arbor.Logger().UnregisterChannel("context")
+
+// Create context logger (now only adds correlation ID)
+contextLogger := arbor.Logger().WithContextWriter("job-123")
+contextLogger.Info().Msg("Processing")
+
+// Consumer filters by correlation ID
+for batch := range logChannel {
+    for _, event := range batch {
+        if event.CorrelationID == "job-123" {
+            // Process logs for specific context
+        }
+    }
+}
+```
+
+**Key Changes:**
+1. Replace `SetContextChannel(ch)` with `SetChannel("context", ch)` or use any channel name
+2. Replace `defer common.Stop()` with `defer Logger().UnregisterChannel("context")`
+3. `WithContextWriter` now only adds correlation ID - filter by `CorrelationID` in consumer
+4. Each named channel is independent with its own lifecycle and batching configuration
 
 #### Error Handling and Edge Cases
 
@@ -1156,9 +1199,9 @@ logger := arbor.Logger().
         TimeFormat: "15:04:05.000",
     })
 
-// Context writer for streaming logs to channel
+// Channel-based streaming with correlation ID filtering
 logChannel := make(chan []models.LogEvent, 10)
-arbor.Logger().SetContextChannel(logChannel)
+arbor.Logger().SetChannel("job-logs", logChannel)
 contextLogger := logger.WithContextWriter("job-123")
 
 contextLogger.Info().Msg("Non-blocking write completes in ~100μs")

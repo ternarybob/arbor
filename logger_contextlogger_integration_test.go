@@ -8,25 +8,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ternarybob/arbor"
-	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
 )
 
 func TestContextLogger_Integration(t *testing.T) {
-	// This test validates the simplified ContextWriter which now directly calls common.Log()
-	// instead of wrapping a ChannelWriter. The external behavior remains the same - logs are
-	// batched and sent to the channel via the singleton context buffer.
+	// This test validates context-specific logging using the unified SetChannel API with correlation ID filtering.
+	// WithContextWriter now only adds a correlation ID, and consumers filter batches by correlation ID.
 
 	// 1. Create a channel to receive log batches.
 	logChan := make(chan []models.LogEvent, 10)
 
-	// 2. Configure the context logger with a small batch size and interval for testing.
+	// 2. Configure a named channel logger with a small batch size and interval for testing.
 	batchSize := 3
 	flushInterval := 100 * time.Millisecond
-	arbor.Logger().SetContextChannelWithBuffer(logChan, batchSize, flushInterval)
-	defer common.Stop()
+	channelName := "test-context-channel"
+	arbor.Logger().SetChannelWithBuffer(channelName, logChan, batchSize, flushInterval)
+	defer arbor.Logger().UnregisterChannel(channelName)
 
-	// 3. Create a consumer that listens on the channel.
+	// 3. Create a consumer that listens on the channel and filters by correlation ID.
+	contextID := "job-123"
 	var receivedLogs [][]models.LogEvent
 	var wg sync.WaitGroup
 	consumerStop := make(chan struct{})
@@ -37,15 +37,23 @@ func TestContextLogger_Integration(t *testing.T) {
 		for {
 			select {
 			case batch := <-logChan:
-				receivedLogs = append(receivedLogs, batch)
+				// Filter batch to only include logs with the target correlation ID
+				filteredBatch := make([]models.LogEvent, 0)
+				for _, event := range batch {
+					if event.CorrelationID == contextID {
+						filteredBatch = append(filteredBatch, event)
+					}
+				}
+				if len(filteredBatch) > 0 {
+					receivedLogs = append(receivedLogs, filteredBatch)
+				}
 			case <-consumerStop:
 				return
 			}
 		}
 	}()
 
-	// 4. Create a context logger.
-	contextID := "job-123"
+	// 4. Create a context logger (now only adds correlation ID, no separate writer).
 	contextLogger := arbor.Logger().WithContextWriter(contextID)
 
 	// 5. Log enough messages to trigger a batch flush.
@@ -61,8 +69,9 @@ func TestContextLogger_Integration(t *testing.T) {
 	close(consumerStop)
 	wg.Wait()
 
-	// This test validates that the simplified ContextWriter (which directly calls common.Log())
-	// correctly integrates with the singleton context buffer to deliver batched logs to the channel.
+	// This test validates that WithContextWriter (which now only adds correlation ID)
+	// correctly tags logs, and the unified SetChannel API delivers them to consumers
+	// who can filter by correlation ID.
 	require.GreaterOrEqual(t, len(receivedLogs), 1, "Should have received at least one batch")
 
 	// 8. Flatten the received batches and verify content.

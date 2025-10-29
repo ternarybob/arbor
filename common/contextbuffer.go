@@ -7,6 +7,11 @@ import (
 	"github.com/ternarybob/arbor/models"
 )
 
+// Deprecated: This singleton context buffer is deprecated and will be removed in a future major version.
+// Use SetChannel/SetChannelWithBuffer with named channels and correlation ID filtering instead.
+// The Start() and Stop() functions are deprecated - use UnregisterChannel() for cleanup.
+// The Log() function is deprecated - logs now flow through the unified SetChannel API.
+
 var (
 	buffer        []models.LogEvent
 	bufferMux     sync.Mutex

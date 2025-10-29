@@ -8,8 +8,14 @@ import (
 )
 
 type ILogger interface {
+	// Deprecated: Use SetChannel("context", ch) instead. This method will be removed in a future version.
+	// SetContextChannel internally calls SetChannel with a fixed name "context".
 	SetContextChannel(ch chan []models.LogEvent)
+
+	// Deprecated: Use SetChannelWithBuffer("context", ch, batchSize, flushInterval) instead. This method will be removed in a future version.
+	// SetContextChannelWithBuffer internally calls SetChannelWithBuffer with a fixed name "context".
 	SetContextChannelWithBuffer(ch chan []models.LogEvent, batchSize int, flushInterval time.Duration)
+
 	SetChannel(name string, ch chan []models.LogEvent)
 	SetChannelWithBuffer(name string, ch chan []models.LogEvent, batchSize int, flushInterval time.Duration)
 	UnregisterChannel(name string)
