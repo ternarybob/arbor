@@ -129,14 +129,15 @@ func (cw *consoleWriter) Close() error {
 
 // ANSI Color Codes
 const (
-	colorReset   = "\033[0m"
-	colorRed     = "\033[31m"
-	colorGreen   = "\033[32m"
-	colorYellow  = "\033[33m"
-	colorBlue    = "\033[34m"
-	colorMagenta = "\033[35m"
-	colorCyan    = "\033[36m"
-	colorGray    = "\033[90m"
+	colorReset        = "\033[0m"
+	colorRed          = "\033[31m"
+	colorGreen        = "\033[32m"
+	colorYellow       = "\033[33m"
+	colorMagenta      = "\033[35m"
+	colorCyan         = "\033[36m"
+	colorTraceGray    = "\033[90m"   // trace level
+	colorFieldKeyBlue = "\033[2;34m" // dim blue for keys
+	colorFieldGray    = "\033[2;37m" // dim light gray for time & values
 )
 
 func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
@@ -146,7 +147,7 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	// Map phuslu levels to 3-letter uppercase and colors
 	switch a.Level {
 	case "trace":
-		levelColor = colorGray
+		levelColor = colorTraceGray
 		levelText = "TRC"
 	case "debug":
 		levelColor = colorCyan
@@ -193,7 +194,7 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 
 	p := ""
 	if a.Time != "" {
-		p += fmt.Sprintf("%s%s%s ", colorGray, a.Time, colorReset)
+		p += fmt.Sprintf("%s%s%s ", colorFieldGray, a.Time, colorReset)
 	}
 
 	// Level part
@@ -208,7 +209,7 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	// KeyValues
 	if len(a.KeyValues) > 0 {
 		for _, kv := range a.KeyValues {
-			p += fmt.Sprintf(" %s%s%s=%s%v%s", colorBlue, kv.Key, colorReset, colorGray, kv.Value, colorReset)
+			p += fmt.Sprintf(" %s%s%s=%s%v%s", colorFieldKeyBlue, kv.Key, colorReset, colorFieldGray, kv.Value, colorReset)
 		}
 	}
 
