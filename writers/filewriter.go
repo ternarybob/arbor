@@ -2,6 +2,8 @@ package writers
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 
 	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
@@ -72,6 +74,7 @@ func (fw *fileWriter) initPhusluWriter(fileName string, maxSize int64, maxBackup
 			Writer:         phusluFileWriter,
 			ColorOutput:    false, // No colors in file output
 			EndWithMessage: true,
+			Formatter:      fileFormatter,
 		}
 	}
 
@@ -174,4 +177,56 @@ func (fw *fileWriter) Close() error {
 		return fileWriter.Close()
 	}
 	return nil
+}
+
+func fileFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
+	var levelText string
+
+	// Map phuslu levels to 3-letter uppercase
+	switch a.Level {
+	case "trace":
+		levelText = "TRC"
+	case "debug":
+		levelText = "DBG"
+	case "info":
+		levelText = "INF"
+	case "warn":
+		levelText = "WRN"
+	case "error":
+		levelText = "ERR"
+	case "fatal":
+		levelText = "FTL"
+	case "panic":
+		levelText = "PNC"
+	default:
+		levelText = "???"
+	}
+
+	// Format: Time | Level | Message | KeyValues
+	// Example: 2025-11-19T22:08:28.123+11:00 | INF | Message | key=value
+
+	// Note: a.Time is pre-formatted by phuslu based on TimeFormat
+	// If TimeFormat is empty, a.Time might be empty or default.
+
+	p := ""
+	if a.Time != "" {
+		p += a.Time + " | "
+	}
+
+	p += levelText + " | "
+	p += a.Message
+
+	if len(a.KeyValues) > 0 {
+		p += " | "
+		for i, kv := range a.KeyValues {
+			if i > 0 {
+				p += " "
+			}
+			p += fmt.Sprintf("%s=%v", kv.Key, kv.Value)
+		}
+	}
+
+	p += "\n"
+
+	return w.Write([]byte(p))
 }

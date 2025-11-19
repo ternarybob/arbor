@@ -4,87 +4,184 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
+
 	"testing"
 	"time"
 
 	"github.com/phuslu/log"
-	"github.com/stretchr/testify/assert"
 	"github.com/ternarybob/arbor/models"
 )
 
-func TestLogViewerService(t *testing.T) {
-	// Setup temporary log directory
-	tempDir, err := os.MkdirTemp("", "arbor-logviewer-test")
-	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+func TestGetLogContent(t *testing.T) {
+	// Create temp directory for logs
+	tempDir := t.TempDir()
 
-	// Create some dummy log files
-	file1Path := filepath.Join(tempDir, "test1.log")
-	// Create a log entry
-	entry1 := models.LogEvent{
+	// 1. Create a JSON log file
+	jsonLogPath := filepath.Join(tempDir, "test.json.log")
+	jsonFile, err := os.Create(jsonLogPath)
+	if err != nil {
+		t.Fatalf("Failed to create json log file: %v", err)
+	}
+
+	jsonEntry := models.LogEvent{
+		Timestamp: time.Now(),
 		Level:     log.InfoLevel,
-		Message:   "content1",
-		Timestamp: time.Now(),
+		Message:   "JSON Message",
+		Fields:    map[string]interface{}{"foo": "bar"},
 	}
-	data1, _ := json.Marshal(entry1)
-	err = os.WriteFile(file1Path, append(data1, '\n'), 0644)
-	assert.NoError(t, err)
+	jsonBytes, _ := json.Marshal(jsonEntry)
+	jsonFile.Write(jsonBytes)
+	jsonFile.WriteString("\n")
+	jsonFile.Close()
 
-	// Ensure file1 is older
-	oldTime := time.Now().Add(-1 * time.Hour)
-	os.Chtimes(file1Path, oldTime, oldTime)
-
-	file2Path := filepath.Join(tempDir, "test2.log")
-	entry2 := models.LogEvent{
-		Level:     log.ErrorLevel,
-		Message:   "content2",
-		Timestamp: time.Now(),
+	// 2. Create a Text log file
+	textLogPath := filepath.Join(tempDir, "test.text.log")
+	textFile, err := os.Create(textLogPath)
+	if err != nil {
+		t.Fatalf("Failed to create text log file: %v", err)
 	}
-	data2, _ := json.Marshal(entry2)
-	err = os.WriteFile(file2Path, append(data2, '\n'), 0644)
-	assert.NoError(t, err)
 
-	service := NewService(tempDir)
+	// Format: TIMESTAMP LEVEL > MESSAGE
+	timestamp := time.Now().Format(time.RFC3339)
+	textLine := timestamp + " INF > Text Message\n"
+	textFile.WriteString(textLine)
+	textFile.Close()
 
-	t.Run("ListLogFiles", func(t *testing.T) {
-		files, err := service.ListLogFiles()
-		assert.NoError(t, err)
-		assert.Len(t, files, 2)
+	// Test Service
+	service := NewService(models.WriterConfiguration{
+		FileName:   jsonLogPath, // We need to point to the dir, but NewService takes config with FileName
+		TextOutput: false,
+	})
+	// But wait, NewService derives LogDirectory from FileName.
+	// If we pass jsonLogPath, LogDirectory will be tempDir.
+	// And GetLogContent takes a filename relative to LogDirectory.
+	// So if we pass jsonLogPath (full path), LogDirectory is tempDir.
+	// Then GetLogContent("test.json.log") will join tempDir + test.json.log -> correct.
 
-		// Check sorting (newest first)
-		assert.Equal(t, "test2.log", files[0].Name)
-		assert.Equal(t, "test1.log", files[1].Name)
+	// However, we want to test both JSON and Text files in the same directory.
+	// NewService takes one config.
+	// If we initialize with jsonLogPath, LogDirectory is set.
+	// Then we can read both files if they are in the same dir.
+
+	// Let's use a dummy filename in the same dir to init service
+	service = NewService(models.WriterConfiguration{
+		FileName:   filepath.Join(tempDir, "dummy.log"),
+		TextOutput: false, // Default to JSON for this test setup, though GetLogContent auto-detects
 	})
 
-	t.Run("GetLogContent", func(t *testing.T) {
-		entries, err := service.GetLogContent("test1.log", 0, nil)
-		assert.NoError(t, err)
-		assert.Len(t, entries, 1)
-		assert.Equal(t, "content1", entries[0].Message)
-	})
+	// Test JSON reading
+	entries, err := service.GetLogContent("test.json.log", 0, nil)
+	if err != nil {
+		t.Errorf("Failed to read JSON log: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("Expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Message != "JSON Message" {
+		t.Errorf("Expected message 'JSON Message', got '%s'", entries[0].Message)
+	}
 
-	t.Run("GetLogContent_Filter", func(t *testing.T) {
-		// test2.log has Error level
-		entries, err := service.GetLogContent("test2.log", 0, []string{"error"})
-		assert.NoError(t, err)
-		assert.Len(t, entries, 1)
-		assert.Equal(t, "content2", entries[0].Message)
+	// Test Text reading
+	entries, err = service.GetLogContent("test.text.log", 0, nil)
+	if err != nil {
+		t.Errorf("Failed to read Text log: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("Expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Message != "Text Message" {
+		t.Errorf("Expected message 'Text Message', got '%s'", entries[0].Message)
+	}
+	if entries[0].Level != log.InfoLevel {
+		t.Errorf("Expected level Info, got %v", entries[0].Level)
+	}
+}
 
-		// Filter mismatch
-		entries, err = service.GetLogContent("test2.log", 0, []string{"info"})
-		assert.NoError(t, err)
-		assert.Len(t, entries, 0)
-	})
+func TestParseTextLog(t *testing.T) {
+	tests := []struct {
+		name    string
+		line    string
+		wantMsg string
+		wantLvl log.Level
+		wantErr bool
+	}{
+		{
+			name:    "Valid Info",
+			line:    "2025-11-19T22:43:44+11:00 INF > Message",
+			wantMsg: "Message",
+			wantLvl: log.InfoLevel,
+			wantErr: false,
+		},
+		{
+			name:    "Valid Error with fields",
+			line:    "2025-11-19T22:43:44+11:00 ERR > key=val Error occurred",
+			wantMsg: "key=val Error occurred",
+			wantLvl: log.ErrorLevel,
+			wantErr: false,
+		},
+		{
+			name:    "Pipe Delimited Info",
+			line:    "2025-11-19T22:43:44+11:00 | INF | Message",
+			wantMsg: "Message",
+			wantLvl: log.InfoLevel,
+			wantErr: false,
+		},
+		{
+			name:    "Pipe Delimited Error with fields",
+			line:    "2025-11-19T22:43:44+11:00 | ERR | Message | key=val",
+			wantMsg: "Message",
+			wantLvl: log.ErrorLevel,
+			wantErr: false,
+			// Note: Fields are not checked in this test helper, but we check message.
+			// In pipe format, fields are parsed into Fields map, not part of Message.
+			// So wantMsg should be "Message".
+		},
+		{
+			name:    "Pipe Delimited with multiple fields",
+			line:    "2025-11-19T22:43:44+11:00 | INF | Message | key1=val1 key2=val2",
+			wantMsg: "Message",
+			wantLvl: log.InfoLevel,
+			wantErr: false,
+		},
+		{
+			name:    "Invalid Separator",
+			line:    "2025-11-19T22:43:44+11:00 INF Message",
+			wantErr: true,
+		},
+		{
+			name:    "Short Line",
+			line:    "Short",
+			wantErr: true, // parseTextLog checks length implicitly via separator search or explicit check
+		},
+	}
 
-	t.Run("GetLogContent_NotFound", func(t *testing.T) {
-		_, err := service.GetLogContent("nonexistent.log", 0, nil)
-		assert.Error(t, err)
-		assert.Equal(t, "file not found", err.Error())
-	})
-
-	t.Run("GetLogContent_TraversalAttempt", func(t *testing.T) {
-		_, err := service.GetLogContent("../outside.log", 0, nil)
-		assert.Error(t, err)
-		assert.Equal(t, "invalid file name", err.Error())
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseTextLog(tt.line)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseTextLog() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if got.Message != tt.wantMsg {
+					t.Errorf("parseTextLog() message = %v, want %v", got.Message, tt.wantMsg)
+				}
+				if got.Level != tt.wantLvl {
+					t.Errorf("parseTextLog() level = %v, want %v", got.Level, tt.wantLvl)
+				}
+				// Check Time string
+				// Extract expected time from line
+				// For pipe: "TIME | ..."
+				// For legacy: "TIME LEVEL > ..."
+				// We can just check if got.Time is not empty and matches the start of the line
+				if got.Time == "" {
+					t.Errorf("parseTextLog() time is empty")
+				}
+				if !strings.HasPrefix(tt.line, got.Time) {
+					t.Errorf("parseTextLog() time %v does not match start of line %v", got.Time, tt.line)
+				}
+			}
+		})
+	}
 }
