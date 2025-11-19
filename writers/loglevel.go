@@ -1,45 +1,47 @@
 package writers
 
 import (
-	"strings"
-
 	"github.com/gookit/color"
+	"github.com/ternarybob/arbor/common"
 )
 
 // levelprint formats the log level with color - consolidated utility function
 func levelprint(level string, colour bool) string {
-	switch strings.ToLower(level) {
-	case "fatal":
+	// Get standardized 3-letter level
+	lvl := common.LevelStringTo3Letter(level)
+
+	switch lvl {
+	case "FTL":
 		if colour {
-			return color.Red.Render("FTL")
+			return color.Red.Render(lvl)
 		}
-		return "FTL"
-	case "error":
+		return lvl
+	case "ERR":
 		if colour {
-			return color.Red.Render("ERR")
+			return color.Red.Render(lvl)
 		}
-		return "ERR"
-	case "warn", "warning":
+		return lvl
+	case "WRN":
 		if colour {
-			return color.Yellow.Render("WRN")
+			return color.Yellow.Render(lvl)
 		}
-		return "WRN"
-	case "info":
+		return lvl
+	case "INF":
 		if colour {
-			return color.Green.Render("INF")
+			return color.Green.Render(lvl)
 		}
-		return "INF"
-	case "debug":
+		return lvl
+	case "DBG":
 		if colour {
-			return color.Cyan.Render("DBG")
+			return color.Cyan.Render(lvl)
 		}
-		return "DBG"
-	case "trace":
+		return lvl
+	case "TRC":
 		if colour {
-			return color.Gray.Render("TRC")
+			return color.Gray.Render(lvl)
 		}
-		return "TRC"
+		return lvl
 	default:
-		return strings.ToUpper(level)
+		return lvl
 	}
 }

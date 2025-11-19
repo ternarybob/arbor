@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/phuslu/log"
+	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
 )
 
@@ -27,7 +27,7 @@ func (e LogEntry) MarshalJSON() ([]byte, error) {
 	// Create a map with all fields
 	data := map[string]interface{}{
 		"index":         e.Index,
-		"level":         levelToString(e.Level),
+		"level":         common.LevelTo3Letter(e.Level),
 		"time":          e.Time,
 		"correlationid": e.CorrelationID,
 		"prefix":        e.Prefix,
@@ -37,26 +37,4 @@ func (e LogEntry) MarshalJSON() ([]byte, error) {
 		"fields":        e.Fields,
 	}
 	return json.Marshal(data)
-}
-
-// levelToString converts log.Level integer to 3-letter string format
-func levelToString(level log.Level) string {
-	switch level {
-	case log.TraceLevel:
-		return "TRC"
-	case log.DebugLevel:
-		return "DBG"
-	case log.InfoLevel:
-		return "INF"
-	case log.WarnLevel:
-		return "WAR"
-	case log.ErrorLevel:
-		return "ERR"
-	case log.FatalLevel:
-		return "FTL"
-	case log.PanicLevel:
-		return "PNC"
-	default:
-		return "UNK"
-	}
 }

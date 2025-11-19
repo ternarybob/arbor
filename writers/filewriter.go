@@ -183,24 +183,7 @@ func fileFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	var levelText string
 
 	// Map phuslu levels to 3-letter uppercase
-	switch a.Level {
-	case "trace":
-		levelText = "TRC"
-	case "debug":
-		levelText = "DBG"
-	case "info":
-		levelText = "INF"
-	case "warn":
-		levelText = "WRN"
-	case "error":
-		levelText = "ERR"
-	case "fatal":
-		levelText = "FTL"
-	case "panic":
-		levelText = "PNC"
-	default:
-		levelText = "???"
-	}
+	levelText = common.LevelStringTo3Letter(a.Level)
 
 	// Format: Time | Level | Message | KeyValues
 	// Example: 2025-11-19T22:08:28.123+11:00 | INF | Message | key=value
