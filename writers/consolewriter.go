@@ -208,7 +208,7 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	// KeyValues
 	if len(a.KeyValues) > 0 {
 		for _, kv := range a.KeyValues {
-			p += fmt.Sprintf(" %s=%v", kv.Key, kv.Value)
+			p += fmt.Sprintf(" %s%s%s=%s%v%s", colorBlue, kv.Key, colorReset, colorGray, kv.Value, colorReset)
 		}
 	}
 
