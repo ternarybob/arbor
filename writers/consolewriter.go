@@ -2,6 +2,8 @@ package writers
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 
 	"github.com/ternarybob/arbor/models"
 
@@ -36,6 +38,7 @@ func ConsoleWriter(config models.WriterConfiguration) IWriter {
 		Writer: &log.ConsoleWriter{
 			ColorOutput:    true,
 			EndWithMessage: true,
+			Formatter:      consoleFormatter,
 		},
 	}
 
@@ -122,4 +125,94 @@ func (cw *consoleWriter) Write(data []byte) (n int, err error) {
 
 func (cw *consoleWriter) Close() error {
 	return nil
+}
+
+// ANSI Color Codes
+const (
+	colorReset   = "\033[0m"
+	colorRed     = "\033[31m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
+	colorMagenta = "\033[35m"
+	colorCyan    = "\033[36m"
+	colorGray    = "\033[37m"
+)
+
+func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
+	var levelColor string
+	var levelText string
+
+	// Map phuslu levels to 3-letter uppercase and colors
+	switch a.Level {
+	case "trace":
+		levelColor = colorGray
+		levelText = "TRC"
+	case "debug":
+		levelColor = colorCyan
+		levelText = "DBG"
+	case "info":
+		levelColor = colorGreen
+		levelText = "INF"
+	case "warn":
+		levelColor = colorYellow
+		levelText = "WRN"
+	case "error":
+		levelColor = colorRed
+		levelText = "ERR"
+	case "fatal":
+		levelColor = colorMagenta
+		levelText = "FTL"
+	case "panic":
+		levelColor = colorMagenta
+		levelText = "PNC"
+	default:
+		levelColor = colorReset
+		levelText = "???"
+	}
+
+	// Format: Time [Level] > Message KeyValues
+	// Note: a.Time is pre-formatted by phuslu based on TimeFormat
+	// If TimeFormat is empty, a.Time might be empty or default.
+	// Arbor config usually sets a time format.
+
+	// Reconstruct the standard phuslu console format but with our colors and level text
+	// Default phuslu: Time Level Message KeyValues
+	// We want: Time [Level] > Message KeyValues (based on previous observation of "INF >")
+	// Wait, looking at previous output: "2025-11-19T18:50:10.246+11:00 INF > This is an info message"
+	// The default phuslu console writer seems to do "Time Level > Message" or similar?
+	// Let's check the default output again from repro:
+	// "2025-11-19T18:50:10.246+11:00 INF > This is an info message"
+	// So yes, it includes a ">".
+
+	// However, a.Message contains the message.
+	// a.KeyValues contains structured fields.
+
+	// Let's try to match the exact format.
+	// Time is in a.Time
+
+	p := a.Time
+	if p != "" {
+		p += " "
+	}
+
+	// Level part
+	p += fmt.Sprintf("%s%s%s", levelColor, levelText, colorReset)
+
+	// Separator
+	p += " > "
+
+	// Message
+	p += a.Message
+
+	// KeyValues
+	if len(a.KeyValues) > 0 {
+		for _, kv := range a.KeyValues {
+			p += fmt.Sprintf(" %s=%v", kv.Key, kv.Value)
+		}
+	}
+
+	p += "\n"
+
+	return w.Write([]byte(p))
 }
