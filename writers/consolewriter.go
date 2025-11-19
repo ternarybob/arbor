@@ -136,7 +136,7 @@ const (
 	colorBlue    = "\033[34m"
 	colorMagenta = "\033[35m"
 	colorCyan    = "\033[36m"
-	colorGray    = "\033[37m"
+	colorGray    = "\033[90m"
 )
 
 func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
@@ -191,9 +191,9 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	// Let's try to match the exact format.
 	// Time is in a.Time
 
-	p := a.Time
-	if p != "" {
-		p += " "
+	p := ""
+	if a.Time != "" {
+		p += fmt.Sprintf("%s%s%s ", colorGray, a.Time, colorReset)
 	}
 
 	// Level part
