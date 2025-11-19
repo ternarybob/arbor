@@ -136,7 +136,7 @@ const (
 	colorMagenta      = "\033[35m"
 	colorCyan         = "\033[36m"
 	colorTraceGray    = "\033[90m"   // trace level
-	colorFieldKeyBlue = "\033[2;34m" // dim blue for keys
+	colorFieldKeyBlue = "\033[34m"   // standard blue for keys
 	colorFieldGray    = "\033[2;37m" // dim light gray for time & values
 )
 
