@@ -67,16 +67,16 @@ func (fw *fileWriter) initPhusluWriter(fileName string, maxSize int64, maxBackup
 		LocalTime:    true,
 	}
 
-	// Configure output format based on TextOutput setting.
+	// Configure output format based on OutputType setting.
 	// Default is logfmt for AI-friendly, human-readable logs.
-	format := fw.config.TextOutput
+	format := fw.config.OutputType
 	if format == "" {
-		format = models.TextOutputFormatLogfmt
+		format = models.OutputFormatLogfmt
 	}
 
 	var writer log.Writer = phusluFileWriter
 	switch format {
-	case models.TextOutputFormatJSON:
+	case models.OutputFormatJSON:
 		// Structured JSON output (legacy behavior)
 		writer = phusluFileWriter
 	default:

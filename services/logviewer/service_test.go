@@ -51,7 +51,7 @@ func TestGetLogContent(t *testing.T) {
 	// Test Service
 	service := NewService(models.WriterConfiguration{
 		FileName:   jsonLogPath, // We need to point to the dir, but NewService takes config with FileName
-		TextOutput: models.TextOutputFormatJSON,
+		OutputType: models.OutputFormatJSON,
 	})
 	// But wait, NewService derives LogDirectory from FileName.
 	// If we pass jsonLogPath, LogDirectory will be tempDir.
@@ -67,7 +67,7 @@ func TestGetLogContent(t *testing.T) {
 	// Let's use a dummy filename in the same dir to init service
 	service = NewService(models.WriterConfiguration{
 		FileName:   filepath.Join(tempDir, "dummy.log"),
-		TextOutput: models.TextOutputFormatJSON, // Force JSON for this test setup, though GetLogContent auto-detects
+		OutputType: models.OutputFormatJSON, // Force JSON for this test setup, though GetLogContent auto-detects
 	})
 
 	// Test JSON reading

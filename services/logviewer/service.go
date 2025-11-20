@@ -34,13 +34,13 @@ func NewService(config models.WriterConfiguration) *Service {
 	// Determine configured format for informational purposes.
 	// Actual parsing is auto-detected per-line in GetLogContent.
 	format := "json"
-	switch config.TextOutput {
-	case models.TextOutputFormatJSON:
+	switch config.OutputType {
+	case models.OutputFormatJSON:
 		format = "json"
-	case models.TextOutputFormatLogfmt, "":
+	case models.OutputFormatLogfmt, "":
 		format = "logfmt"
 	default:
-		format = string(config.TextOutput)
+		format = string(config.OutputType)
 	}
 
 	return &Service{
