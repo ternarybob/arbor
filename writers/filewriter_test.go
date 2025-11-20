@@ -286,7 +286,7 @@ func TestFileWriter_TextOutput(t *testing.T) {
 		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 		FileName:   filepath.Join(tempDir, "text_test.log"),
-		TextOutput: true, // Enable text output format
+		TextOutput: models.TextOutputFormatLogfmt, // Enable logfmt text output format
 	}
 
 	writer := FileWriter(config)
@@ -314,7 +314,7 @@ func TestFileWriter_JsonOutput(t *testing.T) {
 		Level:      levels.InfoLevel,
 		TimeFormat: "15:04:05.000",
 		FileName:   filepath.Join(tempDir, "json_test.log"),
-		TextOutput: false, // Default JSON output format
+		TextOutput: models.TextOutputFormatJSON, // Force JSON output format
 	}
 
 	writer := FileWriter(config)

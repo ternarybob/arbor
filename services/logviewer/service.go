@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/phuslu/log"
@@ -30,9 +31,16 @@ func NewService(config models.WriterConfiguration) *Service {
 
 	logDirectory := filepath.Dir(fileName)
 
+	// Determine configured format for informational purposes.
+	// Actual parsing is auto-detected per-line in GetLogContent.
 	format := "json"
-	if config.TextOutput {
-		format = "text"
+	switch config.TextOutput {
+	case models.TextOutputFormatJSON:
+		format = "json"
+	case models.TextOutputFormatLogfmt, "":
+		format = "logfmt"
+	default:
+		format = string(config.TextOutput)
 	}
 
 	return &Service{
@@ -165,9 +173,18 @@ func (s *Service) GetLogContent(filename string, limit int, levels []string) ([]
 
 // parseTextLog parses a text format log line.
 // Supported formats:
-// 1. Pipe delimited: "TIMESTAMP | LEVEL | MESSAGE | KEY=VALUE"
-// 2. Legacy: "TIMESTAMP LEVEL > [FIELDS] MESSAGE"
+// 1. Logfmt: "time=<timestamp> level=<LEVEL> message=\"Message\" key=value"
+// 2. Pipe delimited: "TIMESTAMP | LEVEL | MESSAGE | KEY=VALUE"
+// 3. Legacy: "TIMESTAMP LEVEL > [FIELDS] MESSAGE"
 func parseTextLog(line string) (LogEntry, error) {
+	// Prefer logfmt-style lines (introduced as the default file format).
+	if strings.HasPrefix(line, "time=") {
+		if entry, err := parseLogfmt(line); err == nil {
+			return entry, nil
+		}
+		// Fall through to other parsers on error.
+	}
+
 	// Check for pipe delimiter
 	if strings.Contains(line, " | ") {
 		return parsePipeLog(line)
@@ -175,6 +192,103 @@ func parseTextLog(line string) (LogEntry, error) {
 
 	// Fallback to legacy format
 	return parseLegacyTextLog(line)
+}
+
+// parseLogfmt parses a logfmt-style log line produced by the file writer.
+// Example:
+//
+//	time=2025-11-19T22:08:28.123+11:00 level=INF message="Message" user=john
+func parseLogfmt(line string) (LogEntry, error) {
+	parts := splitLogfmt(line)
+	if len(parts) == 0 {
+		return LogEntry{}, fmt.Errorf("empty logfmt line")
+	}
+
+	rawFields := make(map[string]string)
+	for _, part := range parts {
+		if !strings.Contains(part, "=") {
+			continue
+		}
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
+		key := kv[0]
+		value := kv[1]
+
+		// Unquote quoted values (e.g., message="hello world").
+		if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+			if unquoted, err := strconv.Unquote(value); err == nil {
+				value = unquoted
+			} else {
+				value = value[1 : len(value)-1]
+			}
+		}
+
+		rawFields[key] = value
+	}
+
+	// Extract known fields
+	timeStr := rawFields["time"]
+	levelStr := rawFields["level"]
+	message := rawFields["message"]
+
+	delete(rawFields, "time")
+	delete(rawFields, "level")
+	delete(rawFields, "message")
+
+	level := parseLevel(levelStr)
+
+	var fields map[string]interface{}
+	if len(rawFields) > 0 {
+		fields = make(map[string]interface{}, len(rawFields))
+		for k, v := range rawFields {
+			fields[k] = v
+		}
+	}
+
+	return LogEntry{
+		LogEvent: models.LogEvent{
+			Level:   level,
+			Message: message,
+			Fields:  fields,
+		},
+		Time: timeStr,
+	}, nil
+}
+
+// splitLogfmt splits a logfmt line into tokens, preserving quoted substrings.
+func splitLogfmt(line string) []string {
+	var parts []string
+	var current strings.Builder
+	inQuotes := false
+
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+
+		if ch == '"' {
+			inQuotes = !inQuotes
+			current.WriteByte(ch)
+			continue
+		}
+
+		if ch == ' ' && !inQuotes {
+			if current.Len() > 0 {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+			continue
+		}
+
+		current.WriteByte(ch)
+	}
+
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
 }
 
 func parsePipeLog(line string) (LogEntry, error) {

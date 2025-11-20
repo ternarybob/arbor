@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/ternarybob/arbor/common"
 	"github.com/ternarybob/arbor/models"
@@ -66,10 +67,20 @@ func (fw *fileWriter) initPhusluWriter(fileName string, maxSize int64, maxBackup
 		LocalTime:    true,
 	}
 
-	// Configure output format based on TextOutput setting
+	// Configure output format based on TextOutput setting.
+	// Default is logfmt for AI-friendly, human-readable logs.
+	format := fw.config.TextOutput
+	if format == "" {
+		format = models.TextOutputFormatLogfmt
+	}
+
 	var writer log.Writer = phusluFileWriter
-	if fw.config.TextOutput {
-		// Use ConsoleWriter for human-readable text format, but output to file
+	switch format {
+	case models.TextOutputFormatJSON:
+		// Structured JSON output (legacy behavior)
+		writer = phusluFileWriter
+	default:
+		// Logfmt or any other text format uses the custom formatter
 		writer = &log.ConsoleWriter{
 			Writer:         phusluFileWriter,
 			ColorOutput:    false, // No colors in file output
@@ -180,36 +191,63 @@ func (fw *fileWriter) Close() error {
 }
 
 func fileFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
-	var levelText string
-
 	// Map phuslu levels to 3-letter uppercase
-	levelText = common.LevelStringTo3Letter(a.Level)
+	levelText := common.LevelStringTo3Letter(a.Level)
 
-	// Format: Time | Level | Message | KeyValues
-	// Example: 2025-11-19T22:08:28.123+11:00 | INF | Message | key=value
+	// Format: logfmt-style
+	//   time=<timestamp> level=<LVL> message="Message" key=value
+	// Example:
+	//   time=2025-11-19T22:08:28.123+11:00 level=INF message="Message" user=john
 
-	// Note: a.Time is pre-formatted by phuslu based on TimeFormat
-	// If TimeFormat is empty, a.Time might be empty or default.
+	var b strings.Builder
 
-	p := ""
+	// Timestamp
 	if a.Time != "" {
-		p += a.Time + " | "
+		b.WriteString("time=")
+		b.WriteString(a.Time)
 	}
 
-	p += levelText + " | "
-	p += a.Message
+	// Level
+	if levelText != "" {
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString("level=")
+		b.WriteString(levelText)
+	}
 
+	// Message (always quoted to preserve spaces)
+	if a.Message != "" {
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString("message=")
+		b.WriteString(fmt.Sprintf("%q", a.Message))
+	}
+
+	// Additional key=value fields (logfmt-style)
 	if len(a.KeyValues) > 0 {
-		p += " | "
-		for i, kv := range a.KeyValues {
-			if i > 0 {
-				p += " "
+		for _, kv := range a.KeyValues {
+			if kv.Key == "" {
+				continue
 			}
-			p += fmt.Sprintf("%s=%v", kv.Key, kv.Value)
+
+			value := fmt.Sprint(kv.Value)
+			if b.Len() > 0 {
+				b.WriteByte(' ')
+			}
+			b.WriteString(kv.Key)
+			b.WriteByte('=')
+
+			// Quote value if it contains spaces or quotes
+			if strings.ContainsAny(value, " \"") {
+				b.WriteString(fmt.Sprintf("%q", value))
+			} else {
+				b.WriteString(value)
+			}
 		}
 	}
 
-	p += "\n"
-
-	return w.Write([]byte(p))
+	b.WriteByte('\n')
+	return io.WriteString(w, b.String())
 }

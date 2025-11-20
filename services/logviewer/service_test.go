@@ -51,7 +51,7 @@ func TestGetLogContent(t *testing.T) {
 	// Test Service
 	service := NewService(models.WriterConfiguration{
 		FileName:   jsonLogPath, // We need to point to the dir, but NewService takes config with FileName
-		TextOutput: false,
+		TextOutput: models.TextOutputFormatJSON,
 	})
 	// But wait, NewService derives LogDirectory from FileName.
 	// If we pass jsonLogPath, LogDirectory will be tempDir.
@@ -67,7 +67,7 @@ func TestGetLogContent(t *testing.T) {
 	// Let's use a dummy filename in the same dir to init service
 	service = NewService(models.WriterConfiguration{
 		FileName:   filepath.Join(tempDir, "dummy.log"),
-		TextOutput: false, // Default to JSON for this test setup, though GetLogContent auto-detects
+		TextOutput: models.TextOutputFormatJSON, // Force JSON for this test setup, though GetLogContent auto-detects
 	})
 
 	// Test JSON reading
@@ -145,6 +145,20 @@ func TestParseTextLog(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "Logfmt Info",
+			line:    "time=2025-11-19T22:43:44+11:00 level=INF message=\"Message\" foo=bar",
+			wantMsg: "Message",
+			wantLvl: log.InfoLevel,
+			wantErr: false,
+		},
+		{
+			name:    "Logfmt Error",
+			line:    "time=2025-11-19T22:43:44+11:00 level=ERR message=\"Error occurred\"",
+			wantMsg: "Error occurred",
+			wantLvl: log.ErrorLevel,
+			wantErr: false,
+		},
+		{
 			name:    "Invalid Separator",
 			line:    "2025-11-19T22:43:44+11:00 INF Message",
 			wantErr: true,
@@ -171,15 +185,24 @@ func TestParseTextLog(t *testing.T) {
 					t.Errorf("parseTextLog() level = %v, want %v", got.Level, tt.wantLvl)
 				}
 				// Check Time string
-				// Extract expected time from line
-				// For pipe: "TIME | ..."
-				// For legacy: "TIME LEVEL > ..."
-				// We can just check if got.Time is not empty and matches the start of the line
 				if got.Time == "" {
 					t.Errorf("parseTextLog() time is empty")
 				}
-				if !strings.HasPrefix(tt.line, got.Time) {
-					t.Errorf("parseTextLog() time %v does not match start of line %v", got.Time, tt.line)
+
+				if strings.HasPrefix(tt.line, "time=") {
+					// For logfmt, expect time field value after "time="
+					after := strings.TrimPrefix(tt.line, "time=")
+					if idx := strings.IndexByte(after, ' '); idx >= 0 {
+						after = after[:idx]
+					}
+					if got.Time != after {
+						t.Errorf("parseTextLog() time = %v, want %v", got.Time, after)
+					}
+				} else {
+					// For pipe and legacy formats, time should match the start of the line
+					if !strings.HasPrefix(tt.line, got.Time) {
+						t.Errorf("parseTextLog() time %v does not match start of line %v", got.Time, tt.line)
+					}
 				}
 			}
 		})
