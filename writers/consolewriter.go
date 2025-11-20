@@ -127,22 +127,31 @@ func (cw *consoleWriter) Close() error {
 	return nil
 }
 
-// ANSI Color Codes
+// ANSI Color Codes (using truecolor for soft theme-aligned tones)
 const (
-	colorReset        = "\033[0m"
-	colorRed          = "\033[31m"
-	colorGreen        = "\033[32m"
-	colorYellow       = "\033[33m"
+	colorReset = "\033[0m"
+
+	// Level foreground colors:
+	// ERR/FTL: #E06C75 (soft red)
+	// WRN:     #E5C07B (soft amber)
+	// INF:     #98C379 (soft sage green)
+	// DBG:     #61AFEF (soft sky blue)
+	colorRed    = "\033[38;2;224;108;117m"
+	colorGreen  = "\033[38;2;152;195;121m"
+	colorYellow = "\033[38;2;229;192;123m"
+	colorCyan   = "\033[38;2;97;175;239m"
+
 	colorMagenta      = "\033[35m"
-	colorCyan         = "\033[36m"
-	colorTraceGray    = "\033[90m"   // trace level
-	colorFieldKeyBlue = colorCyan    // same as DBG level
-	colorFieldGray    = "\033[2;37m" // dim light gray for time & values
+	colorTraceGray    = "\033[90m"            // trace level
+	colorFieldKeyBlue = colorCyan             // same as DBG level
+	colorFieldGray    = "\033[2;37m"          // dim light gray for time & values
+	bgSoftGray        = "\033[48;2;60;60;60m" // soft gray background for ERR/FTL
 )
 
 func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	var levelColor string
 	var levelText string
+	highlightLine := false
 
 	// Map phuslu levels to 3-letter uppercase and colors
 	switch a.Level {
@@ -161,9 +170,11 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	case "error":
 		levelColor = colorRed
 		levelText = "ERR"
+		highlightLine = true
 	case "fatal":
-		levelColor = colorMagenta
+		levelColor = colorRed
 		levelText = "FTL"
+		highlightLine = true
 	case "panic":
 		levelColor = colorMagenta
 		levelText = "PNC"
@@ -204,12 +215,23 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	p += " > "
 
 	// Message
-	p += a.Message
+	if highlightLine {
+		p += fmt.Sprintf("%s%s%s", bgSoftGray, a.Message, colorReset)
+	} else {
+		p += a.Message
+	}
 
 	// KeyValues
 	if len(a.KeyValues) > 0 {
 		for _, kv := range a.KeyValues {
-			p += fmt.Sprintf(" %s%s%s=%s%v%s", colorFieldKeyBlue, kv.Key, colorReset, colorFieldGray, kv.Value, colorReset)
+			if highlightLine {
+				p += fmt.Sprintf(" %s%s%s=%s%v%s",
+					bgSoftGray+colorFieldKeyBlue, kv.Key, colorReset,
+					bgSoftGray+colorFieldGray, kv.Value, colorReset,
+				)
+			} else {
+				p += fmt.Sprintf(" %s%s%s=%s%v%s", colorFieldKeyBlue, kv.Key, colorReset, colorFieldGray, kv.Value, colorReset)
+			}
 		}
 	}
 
