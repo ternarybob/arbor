@@ -142,66 +142,51 @@ const (
 	colorCyan   = "\033[38;2;97;175;239m"
 
 	colorMagenta      = "\033[35m"
-	colorTraceGray    = "\033[90m"            // trace level
-	colorFieldKeyBlue = colorCyan             // same as DBG level
-	colorFieldGray    = "\033[2;37m"          // dim light gray for time & values
-	bgSoftGray        = "\033[48;2;60;60;60m" // soft gray background for ERR/FTL
+	colorTraceGray    = "\033[90m"   // trace level
+	colorFieldKeyBlue = colorCyan    // same as DBG level
+	colorFieldGray    = "\033[2;37m" // dim light gray for time & values
 )
 
 func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	var levelColor string
 	var levelText string
-	highlightLine := false
+	var messageColor string
 
 	// Map phuslu levels to 3-letter uppercase and colors
 	switch a.Level {
 	case "trace":
 		levelColor = colorTraceGray
 		levelText = "TRC"
+		messageColor = ""
 	case "debug":
 		levelColor = colorCyan
 		levelText = "DBG"
+		messageColor = ""
 	case "info":
 		levelColor = colorGreen
 		levelText = "INF"
+		messageColor = ""
 	case "warn":
 		levelColor = colorYellow
 		levelText = "WRN"
+		messageColor = colorYellow
 	case "error":
 		levelColor = colorRed
 		levelText = "ERR"
-		highlightLine = true
+		messageColor = colorRed
 	case "fatal":
 		levelColor = colorRed
 		levelText = "FTL"
-		highlightLine = true
+		messageColor = colorRed
 	case "panic":
 		levelColor = colorMagenta
 		levelText = "PNC"
+		messageColor = colorMagenta
 	default:
 		levelColor = colorReset
 		levelText = "???"
+		messageColor = ""
 	}
-
-	// Format: Time [Level] > Message KeyValues
-	// Note: a.Time is pre-formatted by phuslu based on TimeFormat
-	// If TimeFormat is empty, a.Time might be empty or default.
-	// Arbor config usually sets a time format.
-
-	// Reconstruct the standard phuslu console format but with our colors and level text
-	// Default phuslu: Time Level Message KeyValues
-	// We want: Time [Level] > Message KeyValues (based on previous observation of "INF >")
-	// Wait, looking at previous output: "2025-11-19T18:50:10.246+11:00 INF > This is an info message"
-	// The default phuslu console writer seems to do "Time Level > Message" or similar?
-	// Let's check the default output again from repro:
-	// "2025-11-19T18:50:10.246+11:00 INF > This is an info message"
-	// So yes, it includes a ">".
-
-	// However, a.Message contains the message.
-	// a.KeyValues contains structured fields.
-
-	// Let's try to match the exact format.
-	// Time is in a.Time
 
 	p := ""
 	if a.Time != "" {
@@ -214,20 +199,20 @@ func consoleFormatter(w io.Writer, a *log.FormatterArgs) (int, error) {
 	// Separator
 	p += " > "
 
-	// Message
-	if highlightLine {
-		p += fmt.Sprintf("%s%s%s", bgSoftGray, a.Message, colorReset)
+	// Message - use level color for warn/error/fatal/panic, no background
+	if messageColor != "" {
+		p += fmt.Sprintf("%s%s%s", messageColor, a.Message, colorReset)
 	} else {
 		p += a.Message
 	}
 
-	// KeyValues
+	// KeyValues - use level color for warn/error/fatal/panic, no background
 	if len(a.KeyValues) > 0 {
 		for _, kv := range a.KeyValues {
-			if highlightLine {
+			if messageColor != "" {
 				p += fmt.Sprintf(" %s%s%s=%s%v%s",
-					bgSoftGray+colorFieldKeyBlue, kv.Key, colorReset,
-					bgSoftGray+colorFieldGray, kv.Value, colorReset,
+					messageColor, kv.Key, colorReset,
+					messageColor, kv.Value, colorReset,
 				)
 			} else {
 				p += fmt.Sprintf(" %s%s%s=%s%v%s", colorFieldKeyBlue, kv.Key, colorReset, colorFieldGray, kv.Value, colorReset)
