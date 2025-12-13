@@ -337,8 +337,7 @@ func TestLogger_Copy(t *testing.T) {
 	var _ ILogger = originalLogger
 	var _ ILogger = copiedLogger
 
-	// Verify that the copied logger has NO context data (fresh/clean)
-	// This is the key behavior - Copy should give you a clean logger
+	// Verify that the copied logger inherits context data (tree-like fork)
 	originalLoggerTyped := originalLogger.(*logger)
 	copiedLoggerTyped := copiedLogger.(*logger)
 
@@ -347,16 +346,38 @@ func TestLogger_Copy(t *testing.T) {
 		t.Error("Original logger should have context data")
 	}
 
-	// Copied logger should have empty context data (fresh/clean)
-	if copiedLoggerTyped.contextData == nil {
-		t.Error("Copied logger should have initialized (but empty) context data")
-	}
-	if len(copiedLoggerTyped.contextData) != 0 {
-		t.Error("Copied logger should have empty context data (fresh/clean)")
+	// Copied logger should also have context data, but not share the same map
+	if copiedLoggerTyped.contextData == nil || len(copiedLoggerTyped.contextData) == 0 {
+		t.Error("Copied logger should inherit context data")
 	}
 
-	// Test that modifying the copy doesn't affect the original
-	copiedLogger.WithCorrelationId("copied-456").WithPrefix("COPIED")
+	// Correlation ID and prefix should match initially
+	if originalLoggerTyped.contextData[CORRELATION_ID_KEY] != copiedLoggerTyped.contextData[CORRELATION_ID_KEY] {
+		t.Error("Copied logger should inherit correlation ID")
+	}
+	if originalLoggerTyped.contextData[PREFIX_KEY] != copiedLoggerTyped.contextData[PREFIX_KEY] {
+		t.Error("Copied logger should inherit prefix")
+	}
+
+	// Test that modifying the copy produces a new child and doesn't affect the original or the fork
+	childFromCopy := copiedLogger.WithCorrelationId("copied-456").WithPrefix("COPIED")
+
+	originalLoggerTyped2 := originalLogger.(*logger)
+	copiedLoggerTyped2 := copiedLogger.(*logger)
+	childTyped := childFromCopy.(*logger)
+
+	if originalLoggerTyped2.contextData[CORRELATION_ID_KEY] != "original-123" {
+		t.Error("Original logger should not be mutated by With* on a fork")
+	}
+	if copiedLoggerTyped2.contextData[CORRELATION_ID_KEY] != "original-123" {
+		t.Error("Copied logger should not be mutated by its child With* calls")
+	}
+	if childTyped.contextData[CORRELATION_ID_KEY] != "copied-456" {
+		t.Error("Child logger should have updated correlation ID")
+	}
+	if childTyped.contextData[PREFIX_KEY] != "COPIED" {
+		t.Error("Child logger should have updated prefix")
+	}
 
 	// Both should still be usable for logging
 	originalEvent := originalLogger.Info().Str("source", "original")
@@ -370,10 +391,10 @@ func TestLogger_Copy(t *testing.T) {
 func TestLogger_ClearContext(t *testing.T) {
 	// Create a logger and add multiple context items
 	testLogger := NewLogger()
-	testLogger.WithCorrelationId("test-correlation-123")
-	testLogger.WithContext("key1", "value1")
-	testLogger.WithContext("key2", "value2")
-	testLogger.WithPrefix("test-prefix")
+	testLogger = testLogger.WithCorrelationId("test-correlation-123")
+	testLogger = testLogger.WithContext("key1", "value1")
+	testLogger = testLogger.WithContext("key2", "value2")
+	testLogger = testLogger.WithPrefix("test-prefix")
 
 	// Cast to internal logger type to access contextData
 	testLoggerTyped := testLogger.(*logger)
@@ -385,7 +406,8 @@ func TestLogger_ClearContext(t *testing.T) {
 	}
 
 	// Clear all context
-	testLogger.ClearContext()
+	testLogger = testLogger.ClearContext()
+	testLoggerTyped = testLogger.(*logger)
 
 	// Verify context is cleared
 	if len(testLoggerTyped.contextData) != 0 {
@@ -393,7 +415,8 @@ func TestLogger_ClearContext(t *testing.T) {
 	}
 
 	// Verify we can add new context after clearing
-	testLogger.WithCorrelationId("new-correlation-456")
+	testLogger = testLogger.WithCorrelationId("new-correlation-456")
+	testLoggerTyped = testLogger.(*logger)
 	if testLoggerTyped.contextData["correlationid"] != "new-correlation-456" {
 		t.Errorf("Logger should accept new context after clearing")
 	}

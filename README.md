@@ -203,10 +203,10 @@ logger.Debug().Str("step", "validation").Msg("Validating input")
 logger.Info().Str("result", "success").Msg("Request completed")
 
 // Auto-generate correlation ID
-logger.WithCorrelationId("") // Generates UUID automatically
+logger = logger.WithCorrelationId("") // Generates UUID automatically
 
 // Clear correlation ID
-logger.ClearCorrelationId()
+logger = logger.ClearCorrelationId()
 ```
 
 ## Async Writers with ChannelWriter
@@ -1022,8 +1022,8 @@ logger := arbor.Logger().
     WithContext("version", "1.2.0").
     WithPrefix("UserSvc")
 
-// Copy logger with fresh context
-cleanLogger := logger.Copy() // Same writers, no context data
+// Fork logger (tree-like): same writers + inherited context
+forkedLogger := logger.Copy()
 ```
 
 ## Configuration Examples

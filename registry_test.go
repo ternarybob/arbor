@@ -87,7 +87,7 @@ func TestLoggerWithRegisteredWriters(t *testing.T) {
 	}
 
 	// This should register the memory writer
-	logger.WithMemoryWriter(memoryConfig).WithCorrelationId("test-correlation")
+	logger = logger.WithMemoryWriter(memoryConfig).WithCorrelationId("test-correlation")
 
 	// Test logging
 	logger.Info().Msg("Test message")

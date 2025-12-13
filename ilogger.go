@@ -43,8 +43,8 @@ type ILogger interface {
 
 	WithContext(key string, value string) ILogger
 
-	// Copy creates a copy of the logger with the same configuration but clean/empty context
-	// This is useful when you want a fresh logger that shares the same writers but has no correlation ID, prefix, or other context
+	// Copy creates a forked copy of the logger with the same configuration and context.
+	// This supports tree-like logger usage where `With*` methods do not mutate the parent.
 	Copy() ILogger
 
 	// Fluent logging methods

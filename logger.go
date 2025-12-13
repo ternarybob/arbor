@@ -174,8 +174,7 @@ func (l *logger) UnregisterChannel(name string) {
 //	contextLogger := arbor.Logger().WithContextWriter("job-123")
 //	// In consumer: filter batches by event.CorrelationID == "job-123"
 func (l *logger) WithContextWriter(contextID string) ILogger {
-	// Simply return a copy with the correlation ID set
-	return l.Copy().WithCorrelationId(contextID)
+	return l.WithCorrelationId(contextID)
 }
 
 var (
@@ -199,17 +198,16 @@ func NewLogger() ILogger {
 // createNewLogger is a helper function that creates a fresh logger instance
 func createNewLogger() ILogger {
 	// Create logger that will use registered writers
-	// Start with INFO level as default before configuration is loaded
 	logger := &logger{
 		contextData: make(map[string]string),
 	}
-	logger.WithLevel(InfoLevel) // Initial level
 	return logger
 }
 
-func (l *logger) WithWriters(writers []writers.IWriter) ILogger {
-	l.writers = writers
-	return l
+func (l *logger) WithWriters(writerList []writers.IWriter) ILogger {
+	forked := l.fork()
+	forked.writers = append([]writers.IWriter(nil), writerList...)
+	return forked
 }
 
 func (l *logger) WithConsoleWriter(configuration models.WriterConfiguration) ILogger {
@@ -222,7 +220,7 @@ func (l *logger) WithConsoleWriter(configuration models.WriterConfiguration) ILo
 
 	internalLog.Trace().Msg("Console writer registered successfully.")
 
-	return l
+	return l.fork()
 
 }
 
@@ -236,7 +234,7 @@ func (l *logger) WithFileWriter(configuration models.WriterConfiguration) ILogge
 
 	internalLog.Trace().Msg("File writer registered successfully.")
 
-	return l
+	return l.fork()
 
 }
 
@@ -261,7 +259,7 @@ func (l *logger) WithMemoryWriter(configuration models.WriterConfiguration) ILog
 
 	internalLog.Trace().Msg("Memory writer and log store registered successfully.")
 
-	return l
+	return l.fork()
 
 }
 
@@ -281,9 +279,9 @@ func (l *logger) WithCorrelationId(correlationID string) ILogger {
 
 	internalLog.Debug().Msgf("Adding CorrelationId -> CorrelationId:%s", correlationID)
 
-	l.WithContext(CORRELATION_ID_KEY, correlationID)
-
-	return l
+	forked := l.fork()
+	forked.setContext(CORRELATION_ID_KEY, correlationID)
+	return forked
 
 }
 
@@ -291,26 +289,20 @@ func (l *logger) WithCorrelationId(correlationID string) ILogger {
 func (l *logger) ClearCorrelationId() ILogger {
 	internalLog := common.NewLogger().WithContext("function", "Logger.ClearCorrelationId").GetLogger()
 
-	// Remove the correlation ID from context data
-	if l.contextData != nil {
-		delete(l.contextData, CORRELATION_ID_KEY)
-		internalLog.Debug().Msg("Cleared correlation ID from logger context")
-	}
-
-	return l
+	forked := l.fork()
+	delete(forked.contextData, CORRELATION_ID_KEY)
+	internalLog.Debug().Msg("Cleared correlation ID from logger context")
+	return forked
 }
 
 // ClearContext removes all context data from the logger
 func (l *logger) ClearContext() ILogger {
 	internalLog := common.NewLogger().WithContext("function", "Logger.ClearContext").GetLogger()
 
-	// Clear all context data
-	if l.contextData != nil {
-		l.contextData = make(map[string]string)
-		internalLog.Debug().Msg("Cleared all context data from logger")
-	}
-
-	return l
+	forked := l.fork()
+	forked.contextData = make(map[string]string)
+	internalLog.Debug().Msg("Cleared all context data from logger")
+	return forked
 }
 
 func (l *logger) WithPrefix(value string) ILogger {
@@ -323,33 +315,41 @@ func (l *logger) WithPrefix(value string) ILogger {
 
 	internalLog.Trace().Msgf("Replacing Prefix:%s", value)
 
-	l.WithContext(PREFIX_KEY, value)
-
-	return l
+	forked := l.fork()
+	forked.setContext(PREFIX_KEY, value)
+	return forked
 }
 
 // WithLevelFromString applies a log level from a string configuration
 func (l *logger) WithLevelFromString(levelStr string) ILogger {
 	internalLog := common.NewLogger().WithContext("function", "Logger.WithLevelFromString").GetLogger()
 
+	forked := l.fork()
+
 	// Parse and apply log level from string
 	phusluLevel, err := ParseLevelString(levelStr)
 	if err != nil {
 		internalLog.Warn().Err(err).Msgf("Invalid log level '%s', using INFO", levelStr)
-		l.WithLevel(InfoLevel)
+		forked.applyLevel(InfoLevel, internalLog)
 	} else {
 		// Convert phuslu log.Level to our LogLevel
 		arborLevel := LogLevel(phusluLevel)
-		l.WithLevel(arborLevel)
+		forked.applyLevel(arborLevel, internalLog)
 		internalLog.Debug().Msgf("Set log level to: %s", levelStr)
 	}
 
-	return l
+	return forked
 }
 
 func (l *logger) WithLevel(level LogLevel) ILogger {
 
 	internalLog := common.NewLogger().WithContext("function", "Logger.WithLevel").GetLogger()
+	forked := l.fork()
+	forked.applyLevel(level, internalLog)
+	return forked
+}
+
+func (l *logger) applyLevel(level LogLevel, internalLog log.Logger) {
 	lvl := ParseLogLevel(int(level))
 
 	// If the logger has its own writers, use them. Otherwise, use the global registry.
@@ -364,7 +364,7 @@ func (l *logger) WithLevel(level LogLevel) ILogger {
 		registeredWriters := GetAllRegisteredWriters()
 		if len(registeredWriters) == 0 {
 			internalLog.Trace().Msg("No writers registered.")
-			return l
+			return
 		}
 
 		for key, writer := range registeredWriters {
@@ -372,9 +372,6 @@ func (l *logger) WithLevel(level LogLevel) ILogger {
 			writer.WithLevel(lvl)
 		}
 	}
-
-	return l
-
 }
 
 func (l *logger) WithContext(key string, value string) ILogger {
@@ -386,31 +383,46 @@ func (l *logger) WithContext(key string, value string) ILogger {
 		return l
 	}
 
-	// Ensure contextData map is initialized
-	if l.contextData == nil {
-		l.contextData = make(map[string]string)
-		internalLog.Trace().Msg("contextData was nil, initialized it.")
-	}
-
-	// Check if the specific 'key' already exists
-	if _, exists := l.contextData[key]; exists {
-		l.contextData[key] = value
-		internalLog.Trace().Msgf("Updated existing context key '%s' to: %s", key, value)
-	} else {
-		l.contextData[key] = value
-		internalLog.Trace().Msgf("Added new context key '%s' with value: %s", key, value)
-	}
-
-	return l
+	forked := l.fork()
+	forked.setContext(key, value)
+	return forked
 }
 
-// Copy creates a copy of the logger with the same configuration but fresh/clean context
-// This is useful when you want a logger with the same writers but without any context data
-func (l *logger) Copy() ILogger {
-	// Create a new logger instance with fresh context (no context data copied)
-	newLogger := createNewLogger()
+func (l *logger) fork() *logger {
+	if l == nil {
+		return &logger{contextData: make(map[string]string)}
+	}
 
-	return newLogger
+	forked := &logger{}
+
+	if l.writers != nil {
+		forked.writers = append([]writers.IWriter(nil), l.writers...)
+	}
+
+	if l.contextData != nil {
+		forked.contextData = make(map[string]string, len(l.contextData))
+		for k, v := range l.contextData {
+			forked.contextData[k] = v
+		}
+	} else {
+		forked.contextData = make(map[string]string)
+	}
+
+	return forked
+}
+
+func (l *logger) setContext(key string, value string) {
+	if l.contextData == nil {
+		l.contextData = make(map[string]string)
+	}
+
+	l.contextData[key] = value
+}
+
+// Copy creates a forked copy of the logger with the same configuration and context.
+// Each call creates a new child logger that inherits its parent's context (tree-like).
+func (l *logger) Copy() ILogger {
+	return l.fork()
 }
 
 func (d *logger) getFunctionName() string {
