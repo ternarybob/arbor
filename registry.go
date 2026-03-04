@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	WRITER_CONSOLE = "console"
-	WRITER_FILE    = "file"
-	WRITER_MEMORY  = "memory"
+	WRITER_CONSOLE  = "console"
+	WRITER_FILE     = "file"
+	WRITER_MEMORY   = "memory"
+	WRITER_LOGSTORE = "logstore"
 )
 
 // WriterRegistry manages a collection of named writers with thread-safe access

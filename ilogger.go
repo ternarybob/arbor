@@ -27,6 +27,8 @@ type ILogger interface {
 
 	WithMemoryWriter(config models.WriterConfiguration) ILogger
 
+	WithLogStore(store writers.ILogStore, config models.WriterConfiguration) ILogger
+
 	WithPrefix(value string) ILogger
 
 	WithCorrelationId(value string) ILogger

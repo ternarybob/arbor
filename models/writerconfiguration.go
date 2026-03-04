@@ -9,9 +9,10 @@ import (
 type LogWriterType string
 
 const (
-	LogWriterTypeConsole LogWriterType = "console"
-	LogWriterTypeFile    LogWriterType = "file"
-	LogWriterTypeMemory  LogWriterType = "memory"
+	LogWriterTypeConsole  LogWriterType = "console"
+	LogWriterTypeFile     LogWriterType = "file"
+	LogWriterTypeMemory   LogWriterType = "memory"
+	LogWriterTypeLogStore LogWriterType = "logstore"
 )
 
 // OutputFormat defines the format used for file writer output.

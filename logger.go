@@ -263,6 +263,20 @@ func (l *logger) WithMemoryWriter(configuration models.WriterConfiguration) ILog
 
 }
 
+func (l *logger) WithLogStore(store writers.ILogStore, configuration models.WriterConfiguration) ILogger {
+
+	internalLog := common.NewLogger().WithContext("function", "Logger.WithLogStore").GetLogger()
+
+	// Create a LogStoreWriter that writes to the caller-provided store
+	logStoreWriter := writers.LogStoreWriter(store, configuration)
+	RegisterWriter(WRITER_LOGSTORE, logStoreWriter)
+
+	internalLog.Trace().Msg("Log store writer registered successfully.")
+
+	return l.fork()
+
+}
+
 func (l *logger) WithCorrelationId(correlationID string) ILogger {
 
 	internalLog := common.NewLogger().WithContext("function", "Logger.WithCorrelationId").GetLogger()
